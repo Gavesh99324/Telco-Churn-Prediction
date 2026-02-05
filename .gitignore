@@ -1,0 +1,21 @@
+# Git ignore patterns
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.env
+.venv/
+env/
+venv/
+*.egg-info/
+dist/
+build/
+*.log
+.DS_Store
+artifacts/
+data/raw/*
+!data/raw/.gitkeep
+*.pkl
+.ipynb_checkpoints/
+mlruns/

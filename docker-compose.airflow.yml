@@ -1,0 +1,9 @@
+# Airflow services
+version: "3.8"
+
+services:
+  airflow-scheduler:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.airflow
+    command: scheduler

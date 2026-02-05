@@ -1,0 +1,19 @@
+# Docker ignore patterns
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+.git/
+.gitignore
+README.md
+tests/
+*.md
+.env
+.DS_Store

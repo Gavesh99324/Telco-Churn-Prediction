@@ -1,0 +1,7 @@
+{
+  "family": "inference-pipeline",
+  "taskRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${PROJECT_NAME}-task-role",
+  "executionRoleArn": "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${PROJECT_NAME}-execution-role",
+  "networkMode": "awsvpc",
+  "containerDefinitions": []
+}

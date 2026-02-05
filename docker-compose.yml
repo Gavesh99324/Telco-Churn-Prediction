@@ -1,0 +1,11 @@
+# Main Docker Compose
+version: "3.8"
+
+services:
+  # Add your services here
+  mlflow:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.mlflow
+    ports:
+      - "5000:5000"

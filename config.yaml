@@ -1,0 +1,13 @@
+# Main configuration
+project:
+  name: telco-churn-prediction
+  version: "1.0.0"
+
+paths:
+  data_dir: "./data"
+  artifacts_dir: "./artifacts"
+  models_dir: "./artifacts/models"
+
+database:
+  type: "sqlite" # or "rds"
+  name: "churn_analytics"

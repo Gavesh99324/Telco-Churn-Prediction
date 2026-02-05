@@ -1,0 +1,2 @@
+# MLflow dependencies
+mlflow>=2.8.0

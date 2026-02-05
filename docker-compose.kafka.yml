@@ -1,0 +1,8 @@
+# Kafka services
+version: "3.8"
+
+services:
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    ports:
+      - "9092:9092"

@@ -1,0 +1,10 @@
+# Configuration template
+# Copy this to config.yaml and update with your values
+project:
+  name: your-project-name
+  version: "1.0.0"
+
+paths:
+  data_dir: "./data"
+  artifacts_dir: "./artifacts"
+  models_dir: "./artifacts/models"
