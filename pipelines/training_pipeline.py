@@ -117,20 +117,20 @@ class TrainingPipeline:
                     
                     # Log metrics to MLflow
                     self.mlflow.log_metrics({
-                        'train_accuracy': results['train']['accuracy'],
-                        'train_precision': results['train']['precision'],
-                        'train_recall': results['train']['recall'],
-                        'train_f1': results['train']['f1'],
-                        'test_accuracy': results['test']['accuracy'],
-                        'test_precision': results['test']['precision'],
-                        'test_recall': results['test']['recall'],
-                        'test_f1': results['test']['f1'],
-                        'test_roc_auc': results['test']['roc_auc']
+                        'train_accuracy': results['train_accuracy'],
+                        'train_precision': results['train_precision'],
+                        'train_recall': results['train_recall'],
+                        'train_f1': results['train_f1'],
+                        'test_accuracy': results['test_accuracy'],
+                        'test_precision': results['test_precision'],
+                        'test_recall': results['test_recall'],
+                        'test_f1': results['test_f1'],
+                        'test_roc_auc': results['test_roc_auc']
                     })
                     
                     # Log confusion matrix as dict
                     self.mlflow.log_dict(
-                        {'confusion_matrix': results['test']['confusion_matrix'].tolist()},
+                        {'confusion_matrix': results['confusion_matrix'].tolist()},
                         'confusion_matrix.json'
                     )
             else:
@@ -225,9 +225,9 @@ class TrainingPipeline:
                 
                 # Log tuned model metrics
                 self.mlflow.log_metrics({
-                    'tuned_test_accuracy': tuned_results['test']['accuracy'],
-                    'tuned_test_f1': tuned_results['test']['f1'],
-                    'tuned_test_roc_auc': tuned_results['test']['roc_auc']
+                    'tuned_test_accuracy': tuned_results['test_accuracy'],
+                    'tuned_test_f1': tuned_results['test_f1'],
+                    'tuned_test_roc_auc': tuned_results['test_roc_auc']
                 })
         else:
             # Perform tuning without MLflow
@@ -286,10 +286,10 @@ class TrainingPipeline:
                 
                 # Log SMOTE model metrics
                 self.mlflow.log_metrics({
-                    'smote_train_f1': smote_results['train']['f1'],
-                    'smote_test_f1': smote_results['test']['f1'],
-                    'smote_test_recall': smote_results['test']['recall'],
-                    'smote_test_roc_auc': smote_results['test']['roc_auc']
+                    'smote_train_f1': smote_results['train_f1'],
+                    'smote_test_f1': smote_results['test_f1'],
+                    'smote_test_recall': smote_results['test_recall'],
+                    'smote_test_roc_auc': smote_results['test_roc_auc']
                 })
         else:
             # Train without MLflow
@@ -331,8 +331,8 @@ class TrainingPipeline:
                 )
                 
                 self.mlflow.log_metrics({
-                    'voting_test_f1': voting_results['test']['f1'],
-                    'voting_test_roc_auc': voting_results['test']['roc_auc']
+                    'voting_test_f1': voting_results['test_f1'],
+                    'voting_test_roc_auc': voting_results['test_roc_auc']
                 })
         else:
             voting_clf = self.builder.build_voting_classifier(use_smote_params=False)
@@ -361,8 +361,8 @@ class TrainingPipeline:
                 )
                 
                 self.mlflow.log_metrics({
-                    'stacking_test_f1': stacking_results['test']['f1'],
-                    'stacking_test_roc_auc': stacking_results['test']['roc_auc']
+                    'stacking_test_f1': stacking_results['test_f1'],
+                    'stacking_test_roc_auc': stacking_results['test_roc_auc']
                 })
         else:
             stacking_clf = self.builder.build_stacking_classifier(use_smote_params=False)
