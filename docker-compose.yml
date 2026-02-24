@@ -1,11 +1,39 @@
-# Main Docker Compose
+# Main Docker Compose Configuration for Telco Churn Prediction
 version: "3.8"
 
 services:
-  # Add your services here
+  # MLflow Tracking Server
   mlflow:
     build:
       context: .
       dockerfile: docker/Dockerfile.mlflow
+    container_name: telco-mlflow
     ports:
       - "5000:5000"
+    environment:
+      - MLFLOW_BACKEND_STORE_URI=sqlite:///mlflow/mlflow.db
+      - MLFLOW_ARTIFACT_ROOT=./mlflow/artifacts
+      - MLFLOW_HOST=0.0.0.0
+      - MLFLOW_PORT=5000
+    volumes:
+      - ./mlflow:/mlflow
+      - ./artifacts:/artifacts
+    command: >
+      mlflow server
+      --backend-store-uri sqlite:///mlflow/mlflow.db
+      --default-artifact-root /mlflow/artifacts
+      --host 0.0.0.0
+      --port 5000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - telco-network
+
+networks:
+  telco-network:
+    driver: bridge
