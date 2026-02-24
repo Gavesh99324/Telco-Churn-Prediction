@@ -441,6 +441,53 @@ class TrainingPipeline:
                 }
                 self.mlflow.log_dict(summary, 'pipeline_summary.json')
                 
+                # Register and promote best model to Production
+                logger.info("\n" + "="*70)
+                logger.info("🎯 REGISTERING BEST MODEL TO PRODUCTION")
+                logger.info("="*70)
+                
+                try:
+                    # Find the best run by test_f1 metric
+                    best_run = self.mlflow.get_best_run(metric_name="test_f1", ascending=False)
+                    
+                    if best_run:
+                        run_id = best_run.info.run_id
+                        model_uri = f"runs:/{run_id}/model"
+                        model_name = "telco-churn-best-model"
+                        
+                        logger.info(f"📦 Best run ID: {run_id}")
+                        logger.info(f"🏆 Best model: {results['best_model_name']}")
+                        logger.info(f"📈 Test F1: {results['best_f1_score']:.4f}")
+                        
+                        # Register the model
+                        version = self.mlflow.register_model(
+                            model_uri=model_uri,
+                            name=model_name,
+                            tags={
+                                'framework': 'scikit-learn',
+                                'problem_type': 'binary_classification',
+                                'model_type': results['best_model_name'],
+                                'f1_score': str(results['best_f1_score'])
+                            },
+                            description=f"Best model from training pipeline: {results['best_model_name']} with F1={results['best_f1_score']:.4f}"
+                        )
+                        
+                        if version:
+                            # Transition to Production stage
+                            self.mlflow.transition_model_stage(
+                                name=model_name,
+                                version=str(version),
+                                stage="Production",
+                                archive_existing=True
+                            )
+                            logger.info(f"✅ Model promoted to Production (version {version})")
+                        else:
+                            logger.warning("⚠️  Model registration failed")
+                    else:
+                        logger.warning("⚠️  No best run found for model registration")
+                except Exception as e:
+                    logger.error(f"❌ Failed to register/promote model: {e}")
+                
                 logger.info("✅ MLflow tracking completed")
                 return results
         else:
