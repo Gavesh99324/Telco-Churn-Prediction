@@ -1,8 +1,161 @@
-# Kafka services
+# Kafka streaming services
 version: "3.8"
 
 services:
+  # Zookeeper for Kafka
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: telco-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - telco-network
+    restart: unless-stopped
+
+  # Kafka broker
   kafka:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: telco-kafka
+    depends_on:
+      - zookeeper
     ports:
       - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - telco-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Kafka UI for monitoring
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: telco-kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: telco-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - telco-network
+    restart: unless-stopped
+
+  # Producer service
+  kafka-producer:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.kafka-producer
+    container_name: telco-producer
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: customer-data
+      DATA_PATH: /app/data/raw/telco_churn.csv
+      BATCH_SIZE: 10
+      DELAY_SECONDS: 1
+    volumes:
+      - ./data:/app/data
+      - ./kafka:/app/kafka
+    command: python -m kafka.producer_service --bootstrap-servers kafka:9092 --mode continuous
+    networks:
+      - telco-network
+    restart: unless-stopped
+
+  # Inference service
+  kafka-inference:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.kafka-inference
+    container_name: telco-inference
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      INPUT_TOPIC: customer-data
+      OUTPUT_TOPIC: churn-predictions
+      MODEL_PATH: /app/artifacts/models/best_model.pkl
+      DATA_DIR: /app/artifacts/data
+    volumes:
+      - ./artifacts:/app/artifacts
+      - ./kafka:/app/kafka
+      - ./src:/app/src
+      - ./utils:/app/utils
+    command: python -m kafka.inference_service --bootstrap-servers kafka:9092
+    networks:
+      - telco-network
+    restart: unless-stopped
+
+  # Analytics service
+  kafka-analytics:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.kafka-analytics
+    container_name: telco-analytics
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      INPUT_TOPIC: churn-predictions
+      OUTPUT_TOPIC: churn-analytics
+      DB_PATH: /app/data/churn_analytics.db
+      WINDOW_MINUTES: 60
+    volumes:
+      - ./data:/app/data
+      - ./kafka:/app/kafka
+      - ./utils:/app/utils
+      - analytics-db:/app/data
+    command: python -m kafka.analytics_service --bootstrap-servers kafka:9092
+    networks:
+      - telco-network
+    restart: unless-stopped
+
+  # Database for analytics
+  postgres-analytics:
+    image: postgres:15-alpine
+    container_name: telco-analytics-db
+    environment:
+      POSTGRES_USER: churn_user
+      POSTGRES_PASSWORD: churn_pass
+      POSTGRES_DB: churn_analytics
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-analytics-data:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d
+    networks:
+      - telco-network
+    restart: unless-stopped
+
+volumes:
+  kafka-data:
+  analytics-db:
+  postgres-analytics-data:
+
+networks:
+  telco-network:
+    driver: bridge
