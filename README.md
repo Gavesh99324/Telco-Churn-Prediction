@@ -25,6 +25,4 @@ pip install -r requirements.txt
 
 See `ecs-deployment/` folder for deployment scripts.
 
-## Project Structure
 
-See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for complete project structure.
