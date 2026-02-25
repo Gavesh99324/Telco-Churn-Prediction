@@ -1,6 +1,8 @@
 # Telco Churn Prediction
 
-A professional ML project with MLOps capabilities for predicting customer churn.
+# Telco Churn Prediction
+
+End-to-end MLOps platform for predicting customer churn with real-time streaming and automated retraining.
 
 ## Features
 
