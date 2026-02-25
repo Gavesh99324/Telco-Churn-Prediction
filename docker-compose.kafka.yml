@@ -39,7 +39,13 @@ services:
     networks:
       - telco-network
     healthcheck:
-      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      test:
+        [
+          "CMD",
+          "kafka-broker-api-versions",
+          "--bootstrap-server",
+          "localhost:9092",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -79,7 +85,9 @@ services:
     volumes:
       - ./data:/app/data
       - ./kafka:/app/kafka
-    command: python -m kafka.producer_service --bootstrap-servers kafka:9092 --mode continuous
+      - ./src:/app/src
+      - ./utils:/app/utils
+    command: python /app/kafka/producer_service.py --bootstrap-servers kafka:9092 --mode continuous
     networks:
       - telco-network
     restart: unless-stopped
@@ -104,7 +112,8 @@ services:
       - ./kafka:/app/kafka
       - ./src:/app/src
       - ./utils:/app/utils
-    command: python -m kafka.inference_service --bootstrap-servers kafka:9092
+      - ./pipelines:/app/pipelines
+    command: python /app/kafka/inference_service.py --bootstrap-servers kafka:9092
     networks:
       - telco-network
     restart: unless-stopped
@@ -129,7 +138,7 @@ services:
       - ./kafka:/app/kafka
       - ./utils:/app/utils
       - analytics-db:/app/data
-    command: python -m kafka.analytics_service --bootstrap-servers kafka:9092
+    command: python /app/kafka/analytics_service.py --bootstrap-servers kafka:9092
     networks:
       - telco-network
     restart: unless-stopped

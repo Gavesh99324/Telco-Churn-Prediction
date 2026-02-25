@@ -19,3 +19,6 @@ data/raw/*
 *.pkl
 .ipynb_checkpoints/
 mlruns/
+airflow/logs/
+airflow/*.pid
+airflow/*.log
