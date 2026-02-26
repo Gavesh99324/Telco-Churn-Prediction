@@ -82,6 +82,10 @@ services:
       DATA_PATH: /app/data/raw/telco_churn.csv
       BATCH_SIZE: 10
       DELAY_SECONDS: 1
+      HEALTH_CHECK_PORT: 8001
+      ENVIRONMENT: development
+    ports:
+      - "8001:8001"
     volumes:
       - ./data:/app/data
       - ./kafka:/app/kafka
@@ -91,6 +95,12 @@ services:
     networks:
       - telco-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # Inference service
   kafka-inference:
@@ -107,6 +117,10 @@ services:
       OUTPUT_TOPIC: churn-predictions
       MODEL_PATH: /app/artifacts/models/best_model.pkl
       DATA_DIR: /app/artifacts/data
+      HEALTH_CHECK_PORT: 8002
+      ENVIRONMENT: development
+    ports:
+      - "8002:8002"
     volumes:
       - ./artifacts:/app/artifacts
       - ./kafka:/app/kafka
@@ -117,6 +131,12 @@ services:
     networks:
       - telco-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # Analytics service
   kafka-analytics:
@@ -133,6 +153,10 @@ services:
       OUTPUT_TOPIC: churn-analytics
       DB_PATH: /app/data/churn_analytics.db
       WINDOW_MINUTES: 60
+      HEALTH_CHECK_PORT: 8003
+      ENVIRONMENT: development
+    ports:
+      - "8003:8003"
     volumes:
       - ./data:/app/data
       - ./kafka:/app/kafka
@@ -142,6 +166,12 @@ services:
     networks:
       - telco-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # Database for analytics
   postgres-analytics:

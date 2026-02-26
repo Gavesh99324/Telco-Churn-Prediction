@@ -1,0 +1,113 @@
+# Prometheus configuration for monitoring Telco Churn Prediction services
+
+global:
+  scrape_interval: 15s # Scrape metrics every 15 seconds
+  evaluation_interval: 15s # Evaluate rules every 15 seconds
+  external_labels:
+    cluster: "telco-churn-platform"
+    environment: "development"
+
+# Alertmanager configuration (optional)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#             - 'alertmanager:9093'
+
+# Load rules once and periodically evaluate them
+# rule_files:
+#   - 'alerts/ml_alerts.yml'
+#   - 'alerts/kafka_alerts.yml'
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus itself
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+        labels:
+          service: "prometheus"
+
+  # Kafka Producer Service
+  - job_name: "kafka-producer"
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["kafka-producer:8001"]
+        labels:
+          service: "kafka-producer"
+          component: "streaming"
+
+  # Kafka Inference Service
+  - job_name: "kafka-inference"
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["kafka-inference:8002"]
+        labels:
+          service: "kafka-inference"
+          component: "ml-inference"
+
+  # Kafka Analytics Service
+  - job_name: "kafka-analytics"
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["kafka-analytics:8003"]
+        labels:
+          service: "kafka-analytics"
+          component: "analytics"
+
+  # Kafka JMX Exporter (for Kafka broker metrics)
+  - job_name: "kafka-broker"
+    static_configs:
+      - targets: ["kafka:7071"]
+        labels:
+          service: "kafka-broker"
+          component: "streaming-infrastructure"
+
+  # PostgreSQL Exporter (for analytics database)
+  - job_name: "postgres-analytics"
+    static_configs:
+      - targets: ["postgres-exporter-analytics:9187"]
+        labels:
+          service: "postgres-analytics"
+          component: "database"
+
+  # PostgreSQL Exporter (for Airflow database)
+  - job_name: "postgres-airflow"
+    static_configs:
+      - targets: ["postgres-exporter-airflow:9188"]
+        labels:
+          service: "postgres-airflow"
+          component: "database"
+
+  # Airflow Metrics (if StatsD exporter is enabled)
+  # - job_name: 'airflow'
+  #   static_configs:
+  #     - targets: ['airflow-statsd-exporter:9102']
+  #       labels:
+  #         service: 'airflow'
+  #         component: 'orchestration'
+
+  # MLflow Tracking Server (custom metrics endpoint)
+  # - job_name: 'mlflow'
+  #   metrics_path: '/metrics'
+  #   static_configs:
+  #     - targets: ['mlflow:5000']
+  #       labels:
+  #         service: 'mlflow'
+  #         component: 'ml-tracking'
+
+  # Node Exporter (for host system metrics)
+  - job_name: "node"
+    static_configs:
+      - targets: ["node-exporter:9100"]
+        labels:
+          service: "node-exporter"
+          component: "infrastructure"
+
+  # cAdvisor (for Docker container metrics)
+  - job_name: "cadvisor"
+    static_configs:
+      - targets: ["cadvisor:8080"]
+        labels:
+          service: "cadvisor"
+          component: "infrastructure"

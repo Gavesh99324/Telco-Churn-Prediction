@@ -1,0 +1,340 @@
+{
+  "dashboard": {
+    "title": "Kafka Streaming Metrics",
+    "tags": ["kafka", "streaming", "data-pipeline"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 0,
+    "refresh": "10s",
+    "panels": [
+      {
+        "id": 1,
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+        "type": "graph",
+        "title": "Messages Produced (per topic)",
+        "targets": [
+          {
+            "expr": "sum by (topic) (rate(kafka_messages_produced_total{status=\"success\"}[5m]))",
+            "legendFormat": "{{topic}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          { "format": "msg/s", "label": "Messages/sec" },
+          { "format": "short" }
+        ],
+        "legend": { "show": true, "values": true, "current": true },
+        "lines": true,
+        "fill": 1,
+        "stack": false
+      },
+      {
+        "id": 2,
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+        "type": "graph",
+        "title": "Messages Consumed (per topic)",
+        "targets": [
+          {
+            "expr": "sum by (topic, consumer_group) (rate(kafka_messages_consumed_total{status=\"success\"}[5m]))",
+            "legendFormat": "{{topic}} ({{consumer_group}})",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          { "format": "msg/s", "label": "Messages/sec" },
+          { "format": "short" }
+        ],
+        "legend": { "show": true, "values": true, "current": true },
+        "lines": true,
+        "fill": 1
+      },
+      {
+        "id": 3,
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+        "type": "graph",
+        "title": "Consumer Lag (by partition)",
+        "targets": [
+          {
+            "expr": "kafka_consumer_lag",
+            "legendFormat": "{{topic}}/p{{partition}} ({{consumer_group}})",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          { "format": "short", "label": "Messages Behind" },
+          { "format": "short" }
+        ],
+        "legend": {
+          "show": true,
+          "values": true,
+          "max": true,
+          "current": true
+        },
+        "lines": true,
+        "fill": 0,
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": { "params": [1000], "type": "gt" },
+              "operator": { "type": "and" },
+              "query": { "params": ["A", "5m", "now"] },
+              "reducer": { "params": [], "type": "avg" },
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "frequency": "1m",
+          "handler": 1,
+          "name": "High Consumer Lag alert",
+          "noDataState": "no_data"
+        }
+      },
+      {
+        "id": 4,
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+        "type": "graph",
+        "title": "Message Processing Latency (p50, p95, p99)",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum by (le, topic, consumer_group) (rate(kafka_message_processing_seconds_bucket[5m])))",
+            "legendFormat": "p50 {{topic}} ({{consumer_group}})",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum by (le, topic, consumer_group) (rate(kafka_message_processing_seconds_bucket[5m])))",
+            "legendFormat": "p95 {{topic}} ({{consumer_group}})",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum by (le, topic, consumer_group) (rate(kafka_message_processing_seconds_bucket[5m])))",
+            "legendFormat": "p99 {{topic}} ({{consumer_group}})",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [{ "format": "s", "label": "Latency" }, { "format": "short" }],
+        "legend": {
+          "show": true,
+          "alignAsTable": true,
+          "values": true,
+          "current": true
+        },
+        "lines": true,
+        "fill": 0
+      },
+      {
+        "id": 5,
+        "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+        "type": "stat",
+        "title": "Total Messages Produced (24h)",
+        "targets": [
+          {
+            "expr": "sum(increase(kafka_messages_produced_total{status=\"success\"}[24h]))",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value",
+          "orientation": "auto"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "green" },
+                { "value": 100000, "color": "yellow" },
+                { "value": 500000, "color": "red" }
+              ]
+            },
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 6,
+        "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
+        "type": "stat",
+        "title": "Total Messages Consumed (24h)",
+        "targets": [
+          {
+            "expr": "sum(increase(kafka_messages_consumed_total{status=\"success\"}[24h]))",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "green" },
+                { "value": 100000, "color": "yellow" },
+                { "value": 500000, "color": "red" }
+              ]
+            },
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 7,
+        "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
+        "type": "gauge",
+        "title": "Message Error Rate (%)",
+        "targets": [
+          {
+            "expr": "100 * sum(rate(kafka_messages_consumed_total{status=\"error\"}[5m])) / sum(rate(kafka_messages_consumed_total[5m]))",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "green" },
+                { "value": 1, "color": "yellow" },
+                { "value": 5, "color": "red" }
+              ]
+            },
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        }
+      },
+      {
+        "id": 8,
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+        "type": "graph",
+        "title": "Batch Size Distribution",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum by (le, topic) (rate(kafka_batch_size_bucket[5m])))",
+            "legendFormat": "p50 {{topic}}",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum by (le, topic) (rate(kafka_batch_size_bucket[5m])))",
+            "legendFormat": "p95 {{topic}}",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum by (le, topic) (rate(kafka_batch_size_bucket[5m])))",
+            "legendFormat": "p99 {{topic}}",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          { "format": "short", "label": "Batch Size" },
+          { "format": "short" }
+        ],
+        "legend": { "show": true, "values": true, "current": true },
+        "lines": true,
+        "fill": 1
+      },
+      {
+        "id": 9,
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+        "type": "graph",
+        "title": "Kafka Error Types",
+        "targets": [
+          {
+            "expr": "sum by (error_type) (rate(errors_total{service_name=~\"kafka.*\"}[5m]))",
+            "legendFormat": "{{error_type}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          { "format": "ops", "label": "Errors/sec" },
+          { "format": "short" }
+        ],
+        "legend": {
+          "show": true,
+          "alignAsTable": true,
+          "values": true,
+          "current": true
+        },
+        "bars": true,
+        "stack": true
+      },
+      {
+        "id": 10,
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 32 },
+        "type": "table",
+        "title": "Consumer Group Status",
+        "targets": [
+          {
+            "expr": "kafka_consumer_lag",
+            "format": "table",
+            "instant": true,
+            "refId": "A"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": { "Time": true, "__name__": true },
+              "indexByName": {
+                "consumer_group": 0,
+                "topic": 1,
+                "partition": 2,
+                "value": 3
+              },
+              "renameByName": {
+                "consumer_group": "Consumer Group",
+                "topic": "Topic",
+                "partition": "Partition",
+                "value": "Lag (messages)"
+              }
+            }
+          }
+        ],
+        "options": {
+          "showHeader": true,
+          "sortBy": [{ "displayName": "Lag (messages)", "desc": true }]
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": "auto",
+              "displayMode": "auto"
+            }
+          },
+          "overrides": [
+            {
+              "matcher": { "id": "byName", "options": "Lag (messages)" },
+              "properties": [
+                {
+                  "id": "custom.displayMode",
+                  "value": "color-background"
+                },
+                {
+                  "id": "thresholds",
+                  "value": {
+                    "mode": "absolute",
+                    "steps": [
+                      { "value": 0, "color": "green" },
+                      { "value": 100, "color": "yellow" },
+                      { "value": 1000, "color": "red" }
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "overwrite": true
+}

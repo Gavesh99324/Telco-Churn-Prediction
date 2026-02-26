@@ -1,0 +1,192 @@
+version: "3.8"
+
+services:
+  # Prometheus - Metrics collection and storage
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: telco-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+      - prometheus-data:/prometheus
+    networks:
+      - telco-network
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:9090/-/healthy",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Grafana - Visualization and dashboards
+  grafana:
+    image: grafana/grafana:10.2.2
+    container_name: telco-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_INSTALL_PLUGINS=
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - telco-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Node Exporter - Host system metrics
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: telco-node-exporter
+    command:
+      - "--path.rootfs=/host"
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      - telco-network
+    restart: unless-stopped
+
+  # cAdvisor - Container metrics
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    container_name: telco-cadvisor
+    ports:
+      - "8081:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    networks:
+      - telco-network
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
+
+  # PostgreSQL Exporter for Analytics DB
+  postgres-exporter-analytics:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: telco-postgres-exporter-analytics
+    environment:
+      DATA_SOURCE_NAME: "postgresql://analytics_user:analytics_password@postgres-analytics:5433/analytics_db?sslmode=disable"
+    ports:
+      - "9187:9187"
+    networks:
+      - telco-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+  # PostgreSQL Exporter for Airflow DB
+  postgres-exporter-airflow:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: telco-postgres-exporter-airflow
+    environment:
+      DATA_SOURCE_NAME: "postgresql://airflow:airflow@postgres-airflow:5434/airflow?sslmode=disable"
+    ports:
+      - "9188:9187"
+    networks:
+      - telco-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+  # Loki - Log aggregation (optional)
+  # loki:
+  #   image: grafana/loki:2.9.3
+  #   container_name: telco-loki
+  #   ports:
+  #     - "3100:3100"
+  #   command: -config.file=/etc/loki/local-config.yaml
+  #   volumes:
+  #     - ./monitoring/loki:/etc/loki
+  #     - loki-data:/loki
+  #   networks:
+  #     - telco-network
+  #   restart: unless-stopped
+
+  # Promtail - Log shipper (optional)
+  # promtail:
+  #   image: grafana/promtail:2.9.3
+  #   container_name: telco-promtail
+  #   volumes:
+  #     - ./monitoring/promtail:/etc/promtail
+  #     - /var/log:/var/log:ro
+  #     - /var/lib/docker/containers:/var/lib/docker/containers:ro
+  #   command: -config.file=/etc/promtail/config.yml
+  #   networks:
+  #     - telco-network
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - loki
+
+  # AlertManager (optional)
+  # alertmanager:
+  #   image: prom/alertmanager:v0.26.0
+  #   container_name: telco-alertmanager
+  #   ports:
+  #     - "9093:9093"
+  #   volumes:
+  #     - ./monitoring/alertmanager:/etc/alertmanager
+  #     - alertmanager-data:/alertmanager
+  #   command:
+  #     - '--config.file=/etc/alertmanager/config.yml'
+  #     - '--storage.path=/alertmanager'
+  #   networks:
+  #     - telco-network
+  #   restart: unless-stopped
+
+networks:
+  telco-network:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  # loki-data:
+  #   driver: local
+  # alertmanager-data:
+  #   driver: local
