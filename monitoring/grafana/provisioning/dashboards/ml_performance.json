@@ -1,236 +1,235 @@
 {
-  "dashboard": {
-    "title": "ML Model Performance",
-    "tags": ["ml", "inference", "churn-prediction"],
-    "timezone": "browser",
-    "schemaVersion": 16,
-    "version": 0,
-    "refresh": "10s",
-    "panels": [
-      {
-        "id": 1,
-        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
-        "type": "graph",
-        "title": "Inference Requests Rate",
-        "targets": [
-          {
-            "expr": "rate(ml_inference_requests_total{model_name=\"churn_model\", status=\"success\"}[5m])",
-            "legendFormat": "Success",
-            "refId": "A"
-          },
-          {
-            "expr": "rate(ml_inference_requests_total{model_name=\"churn_model\", status=\"error\"}[5m])",
-            "legendFormat": "Error",
-            "refId": "B"
-          }
-        ],
-        "yaxes": [
-          { "format": "reqps", "label": "Requests/sec" },
-          { "format": "short" }
-        ],
-        "legend": { "show": true },
-        "lines": true,
-        "fill": 1
-      },
-      {
-        "id": 2,
-        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
-        "type": "graph",
-        "title": "Inference Latency (p50, p95, p99)",
-        "targets": [
-          {
-            "expr": "histogram_quantile(0.50, rate(ml_inference_latency_seconds_bucket{model_name=\"churn_model\"}[5m]))",
-            "legendFormat": "p50",
-            "refId": "A"
-          },
-          {
-            "expr": "histogram_quantile(0.95, rate(ml_inference_latency_seconds_bucket{model_name=\"churn_model\"}[5m]))",
-            "legendFormat": "p95",
-            "refId": "B"
-          },
-          {
-            "expr": "histogram_quantile(0.99, rate(ml_inference_latency_seconds_bucket{model_name=\"churn_model\"}[5m]))",
-            "legendFormat": "p99",
-            "refId": "C"
-          }
-        ],
-        "yaxes": [{ "format": "s", "label": "Latency" }, { "format": "short" }],
-        "legend": { "show": true },
-        "lines": true,
-        "fill": 0
-      },
-      {
-        "id": 3,
-        "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 },
-        "type": "stat",
-        "title": "Total Predictions (24h)",
-        "targets": [
-          {
-            "expr": "sum(increase(ml_predictions_total{model_name=\"churn_model\"}[24h]))",
-            "refId": "A"
-          }
-        ],
-        "options": {
-          "graphMode": "area",
-          "colorMode": "value"
+  "uid": "ml-performance",
+  "title": "ML Model Performance",
+  "tags": ["ml", "inference", "churn-prediction"],
+  "timezone": "browser",
+  "editable": true,
+  "schemaVersion": 16,
+  "version": 0,
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "type": "graph",
+      "title": "Inference Requests Rate",
+      "targets": [
+        {
+          "expr": "rate(ml_inference_requests_total{model_name=\"churn_model\", status=\"success\"}[5m])",
+          "legendFormat": "Success",
+          "refId": "A"
         },
-        "fieldConfig": {
-          "defaults": {
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                { "value": 0, "color": "green" },
-                { "value": 10000, "color": "yellow" },
-                { "value": 50000, "color": "red" }
-              ]
-            },
-            "unit": "short"
-          }
+        {
+          "expr": "rate(ml_inference_requests_total{model_name=\"churn_model\", status=\"error\"}[5m])",
+          "legendFormat": "Error",
+          "refId": "B"
         }
-      },
-      {
-        "id": 4,
-        "gridPos": { "h": 8, "w": 8, "x": 8, "y": 8 },
-        "type": "piechart",
-        "title": "Prediction Distribution",
-        "targets": [
-          {
-            "expr": "sum by (prediction_class) (ml_predictions_total{model_name=\"churn_model\"})",
-            "legendFormat": "Class {{prediction_class}}",
-            "refId": "A"
-          }
-        ],
-        "options": {
-          "legend": { "displayMode": "table", "placement": "right" },
-          "pieType": "pie"
-        }
-      },
-      {
-        "id": 5,
-        "gridPos": { "h": 8, "w": 8, "x": 16, "y": 8 },
-        "type": "gauge",
-        "title": "Error Rate (%)",
-        "targets": [
-          {
-            "expr": "100 * sum(rate(ml_inference_requests_total{model_name=\"churn_model\", status=\"error\"}[5m])) / sum(rate(ml_inference_requests_total{model_name=\"churn_model\"}[5m]))",
-            "refId": "A"
-          }
-        ],
-        "options": {
-          "showThresholdLabels": false,
-          "showThresholdMarkers": true
+      ],
+      "yaxes": [
+        { "format": "reqps", "label": "Requests/sec" },
+        { "format": "short" }
+      ],
+      "legend": { "show": true },
+      "lines": true,
+      "fill": 1
+    },
+    {
+      "id": 2,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "type": "graph",
+      "title": "Inference Latency (p50, p95, p99)",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(ml_inference_latency_seconds_bucket{model_name=\"churn_model\"}[5m]))",
+          "legendFormat": "p50",
+          "refId": "A"
         },
-        "fieldConfig": {
-          "defaults": {
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                { "value": 0, "color": "green" },
-                { "value": 1, "color": "yellow" },
-                { "value": 5, "color": "red" }
-              ]
-            },
-            "unit": "percent",
-            "min": 0,
-            "max": 100
-          }
-        }
-      },
-      {
-        "id": 6,
-        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
-        "type": "heatmap",
-        "title": "Prediction Score Distribution",
-        "targets": [
-          {
-            "expr": "sum(rate(ml_prediction_scores_bucket{model_name=\"churn_model\"}[5m])) by (le)",
-            "format": "heatmap",
-            "refId": "A"
-          }
-        ],
-        "dataFormat": "tsbuckets",
-        "options": {
-          "legend": { "show": true }
-        }
-      },
-      {
-        "id": 7,
-        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
-        "type": "graph",
-        "title": "Preprocessing Errors",
-        "targets": [
-          {
-            "expr": "sum by (error_type) (rate(ml_preprocessing_errors_total[5m]))",
-            "legendFormat": "{{error_type}}",
-            "refId": "A"
-          }
-        ],
-        "yaxes": [
-          { "format": "ops", "label": "Errors/sec" },
-          { "format": "short" }
-        ],
-        "legend": { "show": true },
-        "bars": true
-      },
-      {
-        "id": 8,
-        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
-        "type": "graph",
-        "title": "Model Load Time",
-        "targets": [
-          {
-            "expr": "ml_model_load_seconds{model_name=\"churn_model\"}",
-            "legendFormat": "Load Time",
-            "refId": "A"
-          }
-        ],
-        "yaxes": [{ "format": "s", "label": "Seconds" }, { "format": "short" }],
-        "legend": { "show": true },
-        "lines": true
-      },
-      {
-        "id": 9,
-        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
-        "type": "table",
-        "title": "Service Health Status",
-        "targets": [
-          {
-            "expr": "service_up",
-            "format": "table",
-            "instant": true,
-            "refId": "A"
-          }
-        ],
-        "transformations": [
-          {
-            "id": "organize",
-            "options": {
-              "excludeByName": { "Time": true, "__name__": true },
-              "indexByName": { "service_name": 0, "value": 1 },
-              "renameByName": { "service_name": "Service", "value": "Status" }
-            }
-          }
-        ],
-        "options": {
-          "showHeader": true
+        {
+          "expr": "histogram_quantile(0.95, rate(ml_inference_latency_seconds_bucket{model_name=\"churn_model\"}[5m]))",
+          "legendFormat": "p95",
+          "refId": "B"
         },
-        "fieldConfig": {
-          "defaults": {
-            "custom": {
-              "align": "auto",
-              "displayMode": "color-background"
-            },
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                { "value": 0, "color": "red" },
-                { "value": 1, "color": "green" }
-              ]
-            }
+        {
+          "expr": "histogram_quantile(0.99, rate(ml_inference_latency_seconds_bucket{model_name=\"churn_model\"}[5m]))",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ],
+      "yaxes": [{ "format": "s", "label": "Latency" }, { "format": "short" }],
+      "legend": { "show": true },
+      "lines": true,
+      "fill": 0
+    },
+    {
+      "id": 3,
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 },
+      "type": "stat",
+      "title": "Total Predictions (24h)",
+      "targets": [
+        {
+          "expr": "sum(increase(ml_predictions_total{model_name=\"churn_model\"}[24h]))",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "graphMode": "area",
+        "colorMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": 0, "color": "green" },
+              { "value": 10000, "color": "yellow" },
+              { "value": 50000, "color": "red" }
+            ]
+          },
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 8 },
+      "type": "piechart",
+      "title": "Prediction Distribution",
+      "targets": [
+        {
+          "expr": "sum by (prediction_class) (ml_predictions_total{model_name=\"churn_model\"})",
+          "legendFormat": "Class {{prediction_class}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right" },
+        "pieType": "pie"
+      }
+    },
+    {
+      "id": 5,
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 8 },
+      "type": "gauge",
+      "title": "Error Rate (%)",
+      "targets": [
+        {
+          "expr": "100 * sum(rate(ml_inference_requests_total{model_name=\"churn_model\", status=\"error\"}[5m])) / sum(rate(ml_inference_requests_total{model_name=\"churn_model\"}[5m]))",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": 0, "color": "green" },
+              { "value": 1, "color": "yellow" },
+              { "value": 5, "color": "red" }
+            ]
+          },
+          "unit": "percent",
+          "min": 0,
+          "max": 100
+        }
+      }
+    },
+    {
+      "id": 6,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "type": "heatmap",
+      "title": "Prediction Score Distribution",
+      "targets": [
+        {
+          "expr": "sum(rate(ml_prediction_scores_bucket{model_name=\"churn_model\"}[5m])) by (le)",
+          "format": "heatmap",
+          "refId": "A"
+        }
+      ],
+      "dataFormat": "tsbuckets",
+      "options": {
+        "legend": { "show": true }
+      }
+    },
+    {
+      "id": 7,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "type": "graph",
+      "title": "Preprocessing Errors",
+      "targets": [
+        {
+          "expr": "sum by (error_type) (rate(ml_preprocessing_errors_total[5m]))",
+          "legendFormat": "{{error_type}}",
+          "refId": "A"
+        }
+      ],
+      "yaxes": [
+        { "format": "ops", "label": "Errors/sec" },
+        { "format": "short" }
+      ],
+      "legend": { "show": true },
+      "bars": true
+    },
+    {
+      "id": 8,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "type": "graph",
+      "title": "Model Load Time",
+      "targets": [
+        {
+          "expr": "ml_model_load_seconds{model_name=\"churn_model\"}",
+          "legendFormat": "Load Time",
+          "refId": "A"
+        }
+      ],
+      "yaxes": [{ "format": "s", "label": "Seconds" }, { "format": "short" }],
+      "legend": { "show": true },
+      "lines": true
+    },
+    {
+      "id": 9,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "type": "table",
+      "title": "Service Health Status",
+      "targets": [
+        {
+          "expr": "service_up",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "__name__": true },
+            "indexByName": { "service_name": 0, "value": 1 },
+            "renameByName": { "service_name": "Service", "value": "Status" }
+          }
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "displayMode": "color-background"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": 0, "color": "red" },
+              { "value": 1, "color": "green" }
+            ]
           }
         }
       }
-    ]
-  },
-  "overwrite": true
+    }
+  ]
 }

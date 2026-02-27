@@ -1,307 +1,306 @@
 {
-  "dashboard": {
-    "title": "System Health & Resources",
-    "tags": ["system", "infrastructure", "monitoring"],
-    "timezone": "browser",
-    "schemaVersion": 16,
-    "version": 0,
-    "refresh": "30s",
-    "panels": [
-      {
-        "id": 1,
-        "gridPos": { "h": 6, "w": 24, "x": 0, "y": 0 },
-        "type": "table",
-        "title": "Service Health Overview",
-        "targets": [
-          {
-            "expr": "service_up",
-            "format": "table",
-            "instant": true,
-            "refId": "A"
-          }
-        ],
-        "transformations": [
-          {
-            "id": "organize",
-            "options": {
-              "excludeByName": {
-                "Time": true,
-                "__name__": true,
-                "instance": true,
-                "job": true
-              },
-              "indexByName": { "service_name": 0, "value": 1 },
-              "renameByName": { "service_name": "Service", "value": "Status" }
-            }
-          }
-        ],
-        "options": {
-          "showHeader": true
-        },
-        "fieldConfig": {
-          "defaults": {
-            "custom": {
-              "align": "center",
-              "displayMode": "color-background"
+  "uid": "system-health",
+  "title": "System Health & Resources",
+  "tags": ["system", "infrastructure", "monitoring"],
+  "timezone": "browser",
+  "editable": true,
+  "schemaVersion": 16,
+  "version": 0,
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 0 },
+      "type": "table",
+      "title": "Service Health Overview",
+      "targets": [
+        {
+          "expr": "service_up",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "instance": true,
+              "job": true
             },
-            "mappings": [
-              { "type": "value", "value": "1", "text": "UP" },
-              { "type": "value", "value": "0", "text": "DOWN" }
-            ],
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                { "value": 0, "color": "red" },
-                { "value": 1, "color": "green" }
-              ]
-            }
+            "indexByName": { "service_name": 0, "value": 1 },
+            "renameByName": { "service_name": "Service", "value": "Status" }
           }
         }
+      ],
+      "options": {
+        "showHeader": true
       },
-      {
-        "id": 2,
-        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
-        "type": "graph",
-        "title": "Memory Usage (MB)",
-        "targets": [
-          {
-            "expr": "memory_usage_bytes / 1024 / 1024",
-            "legendFormat": "{{service_name}}",
-            "refId": "A"
-          }
-        ],
-        "yaxes": [
-          { "format": "decmbytes", "label": "Memory (MB)" },
-          { "format": "short" }
-        ],
-        "legend": {
-          "show": true,
-          "values": true,
-          "current": true,
-          "max": true
-        },
-        "lines": true,
-        "fill": 1,
-        "stack": false
-      },
-      {
-        "id": 3,
-        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
-        "type": "graph",
-        "title": "CPU Usage (%)",
-        "targets": [
-          {
-            "expr": "cpu_usage_percent",
-            "legendFormat": "{{service_name}}",
-            "refId": "A"
-          }
-        ],
-        "yaxes": [
-          { "format": "percent", "label": "CPU %", "max": 100, "min": 0 },
-          { "format": "short" }
-        ],
-        "legend": {
-          "show": true,
-          "values": true,
-          "current": true,
-          "avg": true
-        },
-        "lines": true,
-        "fill": 1
-      },
-      {
-        "id": 4,
-        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
-        "type": "graph",
-        "title": "Error Rate (per service)",
-        "targets": [
-          {
-            "expr": "sum by (service_name) (rate(errors_total[5m]))",
-            "legendFormat": "{{service_name}}",
-            "refId": "A"
-          }
-        ],
-        "yaxes": [
-          { "format": "ops", "label": "Errors/sec" },
-          { "format": "short" }
-        ],
-        "legend": {
-          "show": true,
-          "alignAsTable": true,
-          "values": true,
-          "current": true
-        },
-        "lines": true,
-        "fill": 1,
-        "stack": true,
-        "alert": {
-          "conditions": [
-            {
-              "evaluator": { "params": [10], "type": "gt" },
-              "operator": { "type": "and" },
-              "query": { "params": ["A", "5m", "now"] },
-              "reducer": { "params": [], "type": "avg" },
-              "type": "query"
-            }
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "center",
+            "displayMode": "color-background"
+          },
+          "mappings": [
+            { "type": "value", "value": "1", "text": "UP" },
+            { "type": "value", "value": "0", "text": "DOWN" }
           ],
-          "executionErrorState": "alerting",
-          "frequency": "1m",
-          "handler": 1,
-          "name": "High Error Rate alert",
-          "noDataState": "no_data"
-        }
-      },
-      {
-        "id": 5,
-        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
-        "type": "graph",
-        "title": "Error Distribution by Type",
-        "targets": [
-          {
-            "expr": "sum by (error_type, severity) (rate(errors_total[5m]))",
-            "legendFormat": "{{error_type}} ({{severity}})",
-            "refId": "A"
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": 0, "color": "red" },
+              { "value": 1, "color": "green" }
+            ]
           }
-        ],
-        "yaxes": [
-          { "format": "ops", "label": "Errors/sec" },
-          { "format": "short" }
-        ],
-        "legend": {
-          "show": true,
-          "alignAsTable": true,
-          "values": true,
-          "current": true
-        },
-        "bars": true,
-        "stack": true
-      },
-      {
-        "id": 6,
-        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
-        "type": "graph",
-        "title": "Active Connections",
-        "targets": [
-          {
-            "expr": "active_connections",
-            "legendFormat": "{{service_name}} ({{connection_type}})",
-            "refId": "A"
-          }
-        ],
-        "yaxes": [
-          { "format": "short", "label": "Connections" },
-          { "format": "short" }
-        ],
-        "legend": { "show": true, "values": true, "current": true },
-        "lines": true,
-        "fill": 1
-      },
-      {
-        "id": 7,
-        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
-        "type": "stat",
-        "title": "Total Services",
-        "targets": [
-          {
-            "expr": "count(service_up)",
-            "refId": "A"
-          }
-        ],
-        "options": {
-          "graphMode": "none",
-          "colorMode": "value",
-          "textMode": "value_and_name"
-        },
-        "fieldConfig": {
-          "defaults": {
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                { "value": 0, "color": "red" },
-                { "value": 5, "color": "yellow" },
-                { "value": 10, "color": "green" }
-              ]
-            }
-          }
-        }
-      },
-      {
-        "id": 8,
-        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 30 },
-        "type": "stat",
-        "title": "Services UP",
-        "targets": [
-          {
-            "expr": "count(service_up == 1)",
-            "refId": "A"
-          }
-        ],
-        "options": {
-          "graphMode": "area",
-          "colorMode": "value"
-        },
-        "fieldConfig": {
-          "defaults": {
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                { "value": 0, "color": "red" },
-                { "value": 5, "color": "yellow" },
-                { "value": 10, "color": "green" }
-              ]
-            }
-          }
-        }
-      },
-      {
-        "id": 9,
-        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 30 },
-        "type": "stat",
-        "title": "Services DOWN",
-        "targets": [
-          {
-            "expr": "count(service_up == 0)",
-            "refId": "A"
-          }
-        ],
-        "options": {
-          "graphMode": "none",
-          "colorMode": "value"
-        },
-        "fieldConfig": {
-          "defaults": {
-            "thresholds": {
-              "mode": "absolute",
-              "steps": [
-                { "value": 0, "color": "green" },
-                { "value": 1, "color": "yellow" },
-                { "value": 3, "color": "red" }
-              ]
-            }
-          }
-        }
-      },
-      {
-        "id": 10,
-        "gridPos": { "h": 10, "w": 24, "x": 0, "y": 38 },
-        "type": "logs",
-        "title": "Recent Error Logs",
-        "targets": [
-          {
-            "expr": "{level=\"ERROR\"} |= ``",
-            "refId": "A"
-          }
-        ],
-        "options": {
-          "showTime": true,
-          "showLabels": false,
-          "showCommonLabels": false,
-          "wrapLogMessage": true,
-          "prettifyLogMessage": false,
-          "enableLogDetails": true
         }
       }
-    ]
-  },
-  "overwrite": true
+    },
+    {
+      "id": 2,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "type": "graph",
+      "title": "Memory Usage (MB)",
+      "targets": [
+        {
+          "expr": "memory_usage_bytes / 1024 / 1024",
+          "legendFormat": "{{service_name}}",
+          "refId": "A"
+        }
+      ],
+      "yaxes": [
+        { "format": "decmbytes", "label": "Memory (MB)" },
+        { "format": "short" }
+      ],
+      "legend": {
+        "show": true,
+        "values": true,
+        "current": true,
+        "max": true
+      },
+      "lines": true,
+      "fill": 1,
+      "stack": false
+    },
+    {
+      "id": 3,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "type": "graph",
+      "title": "CPU Usage (%)",
+      "targets": [
+        {
+          "expr": "cpu_usage_percent",
+          "legendFormat": "{{service_name}}",
+          "refId": "A"
+        }
+      ],
+      "yaxes": [
+        { "format": "percent", "label": "CPU %", "max": 100, "min": 0 },
+        { "format": "short" }
+      ],
+      "legend": {
+        "show": true,
+        "values": true,
+        "current": true,
+        "avg": true
+      },
+      "lines": true,
+      "fill": 1
+    },
+    {
+      "id": 4,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "type": "graph",
+      "title": "Error Rate (per service)",
+      "targets": [
+        {
+          "expr": "sum by (service_name) (rate(errors_total[5m]))",
+          "legendFormat": "{{service_name}}",
+          "refId": "A"
+        }
+      ],
+      "yaxes": [
+        { "format": "ops", "label": "Errors/sec" },
+        { "format": "short" }
+      ],
+      "legend": {
+        "show": true,
+        "alignAsTable": true,
+        "values": true,
+        "current": true
+      },
+      "lines": true,
+      "fill": 1,
+      "stack": true,
+      "alert": {
+        "conditions": [
+          {
+            "evaluator": { "params": [10], "type": "gt" },
+            "operator": { "type": "and" },
+            "query": { "params": ["A", "5m", "now"] },
+            "reducer": { "params": [], "type": "avg" },
+            "type": "query"
+          }
+        ],
+        "executionErrorState": "alerting",
+        "frequency": "1m",
+        "handler": 1,
+        "name": "High Error Rate alert",
+        "noDataState": "no_data"
+      }
+    },
+    {
+      "id": 5,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "type": "graph",
+      "title": "Error Distribution by Type",
+      "targets": [
+        {
+          "expr": "sum by (error_type, severity) (rate(errors_total[5m]))",
+          "legendFormat": "{{error_type}} ({{severity}})",
+          "refId": "A"
+        }
+      ],
+      "yaxes": [
+        { "format": "ops", "label": "Errors/sec" },
+        { "format": "short" }
+      ],
+      "legend": {
+        "show": true,
+        "alignAsTable": true,
+        "values": true,
+        "current": true
+      },
+      "bars": true,
+      "stack": true
+    },
+    {
+      "id": 6,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+      "type": "graph",
+      "title": "Active Connections",
+      "targets": [
+        {
+          "expr": "active_connections",
+          "legendFormat": "{{service_name}} ({{connection_type}})",
+          "refId": "A"
+        }
+      ],
+      "yaxes": [
+        { "format": "short", "label": "Connections" },
+        { "format": "short" }
+      ],
+      "legend": { "show": true, "values": true, "current": true },
+      "lines": true,
+      "fill": 1
+    },
+    {
+      "id": 7,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+      "type": "stat",
+      "title": "Total Services",
+      "targets": [
+        {
+          "expr": "count(service_up)",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "graphMode": "none",
+        "colorMode": "value",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": 0, "color": "red" },
+              { "value": 5, "color": "yellow" },
+              { "value": 10, "color": "green" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 8,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 30 },
+      "type": "stat",
+      "title": "Services UP",
+      "targets": [
+        {
+          "expr": "count(service_up == 1)",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "graphMode": "area",
+        "colorMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": 0, "color": "red" },
+              { "value": 5, "color": "yellow" },
+              { "value": 10, "color": "green" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 9,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 30 },
+      "type": "stat",
+      "title": "Services DOWN",
+      "targets": [
+        {
+          "expr": "count(service_up == 0)",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "graphMode": "none",
+        "colorMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": 0, "color": "green" },
+              { "value": 1, "color": "yellow" },
+              { "value": 3, "color": "red" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 10,
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 38 },
+      "type": "logs",
+      "title": "Recent Error Logs",
+      "targets": [
+        {
+          "expr": "{level=\"ERROR\"} |= ``",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true
+      }
+    }
+  ]
 }
