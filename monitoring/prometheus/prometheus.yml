@@ -32,7 +32,7 @@ scrape_configs:
   - job_name: "kafka-producer"
     metrics_path: "/metrics"
     static_configs:
-      - targets: ["kafka-producer:8001"]
+      - targets: ["telco-producer:8001"]
         labels:
           service: "kafka-producer"
           component: "streaming"
@@ -41,7 +41,7 @@ scrape_configs:
   - job_name: "kafka-inference"
     metrics_path: "/metrics"
     static_configs:
-      - targets: ["kafka-inference:8002"]
+      - targets: ["telco-inference:8002"]
         labels:
           service: "kafka-inference"
           component: "ml-inference"
@@ -50,7 +50,7 @@ scrape_configs:
   - job_name: "kafka-analytics"
     metrics_path: "/metrics"
     static_configs:
-      - targets: ["kafka-analytics:8003"]
+      - targets: ["telco-analytics:8003"]
         labels:
           service: "kafka-analytics"
           component: "analytics"
@@ -58,7 +58,7 @@ scrape_configs:
   # Kafka JMX Exporter (for Kafka broker metrics)
   - job_name: "kafka-broker"
     static_configs:
-      - targets: ["kafka:7071"]
+      - targets: ["telco-kafka:7071"]
         labels:
           service: "kafka-broker"
           component: "streaming-infrastructure"

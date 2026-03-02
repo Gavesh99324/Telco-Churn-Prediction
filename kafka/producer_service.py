@@ -1,19 +1,25 @@
 """Kafka producer service for customer data streaming"""
-from utils.health_check import HealthCheckServer, ServiceHealthMonitor
-from utils.metrics import MetricsCollector, KAFKA_BATCH_SIZE
-from utils.structured_logger import get_logger
+# fmt: off
+# isort: skip_file
 import sys
 import os
-import json
-import time
-import pandas as pd
 from pathlib import Path
-from typing import Dict, Any, Optional
-from kafka import KafkaProducer
-from kafka.errors import KafkaError
 
-# Add project root to path
+# CRITICAL: Add project root to Python path BEFORE any local imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+# Local utils imports (require sys.path to be set first)
+from utils.structured_logger import get_logger
+from utils.metrics import MetricsCollector, KAFKA_BATCH_SIZE
+from utils.health_check import HealthCheckServer, ServiceHealthMonitor
+
+# Third-party imports
+from kafka.errors import KafkaError
+from kafka import KafkaProducer
+from typing import Dict, Any, Optional
+import pandas as pd
+import time
+import json
 
 
 logger = get_logger(
