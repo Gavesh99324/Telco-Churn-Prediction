@@ -5,5 +5,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY kafka/producer_service.py .
-CMD ["python", "producer_service.py"]
+COPY utils/ ./utils/
+COPY kafka/producer_service.py ./kafka/
+CMD ["python", "kafka/producer_service.py"]
