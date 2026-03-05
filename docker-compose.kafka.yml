@@ -11,6 +11,9 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-log:/var/lib/zookeeper/log
     networks:
       - telco-network
     restart: unless-stopped
@@ -46,16 +49,11 @@ services:
     networks:
       - telco-network
     healthcheck:
-      test:
-        [
-          "CMD",
-          "kafka-broker-api-versions",
-          "--bootstrap-server",
-          "localhost:9092",
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test: ["CMD-SHELL", "nc -z localhost 9092 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
     restart: unless-stopped
 
   # Kafka UI for monitoring
@@ -199,6 +197,8 @@ services:
 
 volumes:
   kafka-data:
+  zookeeper-data:
+  zookeeper-log:
   analytics-db:
   postgres-analytics-data:
 
