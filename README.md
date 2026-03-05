@@ -7,6 +7,8 @@ End-to-end MLOps platform for predicting customer churn with real-time streaming
 - 🌊 **Apache Airflow** for workflow orchestration
 - 📊 **Kafka** for real-time streaming
 - 🤖 **MLflow** for experiment tracking and model registry
+- 🎨 **React + MUI Web Dashboard** for interactive predictions
+- ⚡ **FastAPI REST API** for model serving
 - 🐳 **Docker** containerization with health checks
 - 📈 **Prometheus + Grafana** for monitoring and observability
 - 📝 **Structured JSON logging** for ELK/CloudWatch integration
@@ -29,17 +31,34 @@ docker-compose -f docker-compose.airflow.yml up -d
 docker-compose -f docker-compose.monitoring.yml up -d
 ```
 
-### 2. Access Services
+### 2. Web Dashboard (NEW! 🎨)
 
-| Service          | URL                          | Credentials   |
-| ---------------- | ---------------------------- | ------------- |
-| Airflow UI       | http://localhost:8080        | admin / admin |
-| Kafka UI         | http://localhost:8090        | -             |
-| Grafana          | http://localhost:3000        | admin / admin |
-| Prometheus       | http://localhost:9090        | -             |
-| Producer Health  | http://localhost:8001/health | -             |
-| Inference Health | http://localhost:8002/health | -             |
-| Analytics Health | http://localhost:8003/health | -             |
+```bash
+# Start Web Dashboard (React + MUI + FastAPI)
+./start_web_dashboard.ps1   # Windows
+# or
+./start_web_dashboard.sh    # Linux/Mac
+
+# Access at http://localhost:3001
+```
+
+See [WEB_DASHBOARD_README.md](WEB_DASHBOARD_README.md) for complete documentation.
+4
+
+### 3. Access Services
+
+| Service              | URL                          | Credentials   |
+| -------------------- | ---------------------------- | ------------- |
+| **Web Dashboard** ⭐ | http://localhost:3001        | -             |
+| **FastAPI Docs** ⭐  | http://localhost:8000/docs   | -             |
+| Airflow UI           | http://localhost:8080        | admin / admin |
+| Kafka UI             | http://localhost:8090        | -             |
+| Grafana              | http://localhost:3000        | admin / admin |
+| Prometheus           | http://localhost:9090        | -             |
+| MLflow               | http://localhost:5000        | -             |
+| Producer Health      | http://localhost:8001/health | -             |
+| Inference Health     | http://localhost:8002/health | -             |
+| Analytics Health     | http://localhost:8003/health | -             |
 
 ### 3. Local Development
 
