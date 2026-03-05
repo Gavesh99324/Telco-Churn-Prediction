@@ -295,8 +295,7 @@ function App() {
         {/* Footer */}
         <Box sx={{ mt: 6, mb: 2, textAlign: "center" }}>
           <Typography variant="body2" color="text.secondary">
-            Telco Churn Prediction System v1.0.0 | Powered by FastAPI + React +
-            MUI
+            Telco Churn Prediction System
           </Typography>
         </Box>
       </Container>

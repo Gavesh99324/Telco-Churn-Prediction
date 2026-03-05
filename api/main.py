@@ -197,7 +197,14 @@ def load_model_artifacts():
         features_path = data_dir / 'feature_names.pkl'
         if features_path.exists():
             with open(features_path, 'rb') as f:
-                feature_names = pickle.load(f)
+                loaded_features = pickle.load(f)
+                # Handle both dict and list formats
+                if isinstance(loaded_features, dict):
+                    feature_names = loaded_features.get('feature_names', [])
+                elif isinstance(loaded_features, list):
+                    feature_names = loaded_features
+                else:
+                    feature_names = list(loaded_features)
             logger.info(f"Feature names loaded: {len(feature_names)} features")
 
         logger.info("✅ All model artifacts loaded successfully")
@@ -218,16 +225,18 @@ def preprocess_customer_data(customer: CustomerData) -> pd.DataFrame:
         if 'TotalCharges' in data.columns:
             data['TotalCharges'] = pd.to_numeric(
                 data['TotalCharges'], errors='coerce')
-            data['TotalCharges'].fillna(data['MonthlyCharges'], inplace=True)
+            data['TotalCharges'] = data['TotalCharges'].fillna(
+                data['MonthlyCharges'])
 
-        # Feature engineering (match training pipeline)
-        # 1. Tenure-based features
+        # Feature engineering (match training pipeline EXACTLY)
+        # 1. Average charge per tenure
         data['avg_charge_per_tenure'] = data['TotalCharges'] / \
             (data['tenure'] + 1)
 
-        # 2. Service count
-        service_cols = ['PhoneService', 'InternetService', 'OnlineSecurity',
-                        'OnlineBackup', 'DeviceProtection', 'TechSupport']
+        # 2. Service count (ALL services)
+        service_cols = ['PhoneService', 'MultipleLines', 'InternetService',
+                        'OnlineSecurity', 'OnlineBackup', 'DeviceProtection',
+                        'TechSupport', 'StreamingTV', 'StreamingMovies']
         data['service_count'] = 0
         for col in service_cols:
             if col in data.columns:
@@ -235,6 +244,52 @@ def preprocess_customer_data(customer: CustomerData) -> pd.DataFrame:
 
         # 3. Has phone
         data['has_phone'] = (data['PhoneService'] == 'Yes').astype(int)
+
+        # 4. Has internet
+        data['has_internet'] = (data['InternetService'] != 'No').astype(int)
+
+        # 5. Premium services count (security, backup, protection)
+        premium_services = ['OnlineSecurity',
+                            'OnlineBackup', 'DeviceProtection']
+        data['premium_services_count'] = 0
+        for col in premium_services:
+            if col in data.columns:
+                data['premium_services_count'] += (data[col]
+                                                   == 'Yes').astype(int)
+
+        # 6. Streaming services count
+        streaming_cols = ['StreamingTV', 'StreamingMovies']
+        data['streaming_services_count'] = 0
+        for col in streaming_cols:
+            if col in data.columns:
+                data['streaming_services_count'] += (
+                    data[col] == 'Yes').astype(int)
+
+        # 7. Senior citizen with dependents
+        data['senior_with_dependents'] = (
+            (data['SeniorCitizen'] == 1) & (data['Dependents'] == 'Yes')
+        ).astype(int)
+
+        # 8. Monthly to total charges ratio
+        data['monthly_to_total_ratio'] = data['MonthlyCharges'] / \
+            (data['TotalCharges'] + 1)
+
+        # 9. Contract encoding (ordinal)
+        contract_map = {'Month-to-month': 0, 'One year': 1, 'Two year': 2}
+        data['contract_encoded'] = data['Contract'].map(contract_map)
+
+        # 10. Tenure group (categorical bins)
+        def assign_tenure_group(tenure):
+            if tenure <= 12:
+                return '0-1 year'
+            elif tenure <= 24:
+                return '1-2 years'
+            elif tenure <= 48:
+                return '2-4 years'
+            else:
+                return '4+ years'
+
+        data['tenure_group'] = data['tenure'].apply(assign_tenure_group)
 
         # Apply label encoding for binary features
         binary_cols = ['gender', 'Partner', 'Dependents',
@@ -246,10 +301,10 @@ def preprocess_customer_data(customer: CustomerData) -> pd.DataFrame:
                     data[col] = data[col].map(lambda x: le.transform([x])[
                                               0] if x in le.classes_ else 0)
 
-        # One-hot encoding for categorical features
+        # One-hot encoding for categorical features (including tenure_group)
         categorical_cols = ['MultipleLines', 'InternetService', 'OnlineSecurity', 'OnlineBackup',
                             'DeviceProtection', 'TechSupport', 'StreamingTV', 'StreamingMovies',
-                            'Contract', 'PaymentMethod']
+                            'Contract', 'PaymentMethod', 'tenure_group']
 
         data = pd.get_dummies(data, columns=categorical_cols, drop_first=False)
 
@@ -268,7 +323,7 @@ def preprocess_customer_data(customer: CustomerData) -> pd.DataFrame:
                                   'avg_charge_per_tenure', 'service_count']
             for col in numerical_features:
                 if col in data.columns:
-                    data[col] = scaler.transform(data[[col]])
+                    data[col] = scaler.transform(data[[col]]).ravel()
 
         return data
 
