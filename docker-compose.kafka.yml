@@ -24,6 +24,7 @@ services:
     ports:
       - "9092:9092"
       - "29092:29092"
+      - "7071:7071"  # JMX Exporter port for Prometheus
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -34,8 +35,14 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_LOG_RETENTION_HOURS: 168
       KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      # JMX Configuration
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: localhost
+      # JMX Exporter (Prometheus agent)
+      KAFKA_OPTS: "-javaagent:/etc/jmx_exporter/jmx_prometheus_javaagent-0.20.0.jar=7071:/etc/jmx_exporter/kafka-jmx-config.yml"
     volumes:
       - kafka-data:/var/lib/kafka/data
+      - ./monitoring/jmx_exporter:/etc/jmx_exporter:ro
     networks:
       - telco-network
     healthcheck:
@@ -85,7 +92,7 @@ services:
       HEALTH_CHECK_PORT: 8001
       ENVIRONMENT: development
     ports:
-      - "8021:8001"
+      - "18021:8001"
     volumes:
       - ./data:/app/data
       - ./kafka:/app/kafka
@@ -120,7 +127,7 @@ services:
       HEALTH_CHECK_PORT: 8002
       ENVIRONMENT: development
     ports:
-      - "8022:8002"
+      - "18022:8002"
     volumes:
       - ./artifacts:/app/artifacts
       - ./kafka:/app/kafka
@@ -156,7 +163,7 @@ services:
       HEALTH_CHECK_PORT: 8003
       ENVIRONMENT: development
     ports:
-      - "8023:8003"
+      - "18023:8003"
     volumes:
       - ./data:/app/data
       - ./kafka:/app/kafka
