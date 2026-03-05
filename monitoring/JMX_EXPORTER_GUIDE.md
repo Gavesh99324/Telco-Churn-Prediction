@@ -7,6 +7,7 @@
 **JMX (Java Management Extensions)** is a Java technology that provides monitoring and management capabilities for Java applications. Kafka, being a JVM-based application, exposes performance metrics through JMX.
 
 **JMX Exporter** is a **Java agent** that:
+
 1. Attaches to Kafka's JVM process
 2. Reads JMX MBeans (Managed Beans)
 3. Converts JMX metrics to Prometheus format
@@ -50,24 +51,29 @@
 ### What Metrics Does It Provide?
 
 **Broker Metrics:**
+
 - `kafka_server_brokertopicmetrics_messagesinpersec` - Message rate
 - `kafka_server_brokertopicmetrics_bytesinpersec` - Bytes in rate
 - `kafka_server_brokertopicmetrics_bytesoutpersec` - Bytes out rate
 
 **Network Metrics:**
+
 - `kafka_network_requestmetrics_requestspersec` - Request rate by type
 - `kafka_network_requestmetrics_totaltimems` - Request latency
 
 **Partition & Replication:**
+
 - `kafka_server_replicamanager_partitioncount` - Number of partitions
 - `kafka_server_replicamanager_leadercount` - Leader partitions
 - `kafka_server_replicamanager_underreplicatedpartitions` - Replication lag
 
 **Controller Metrics:**
+
 - `kafka_controller_kafkacontroller_activecontrollercount` - Active controller
 - `kafka_controller_kafkacontroller_offlinepartitionscount` - Offline partitions
 
 **JVM Metrics:**
+
 - `jvm_memory_heap_used` - Heap memory usage
 - `jvm_gc_collection_count` - Garbage collection count
 - `jvm_threads_current` - Active thread count
@@ -85,11 +91,13 @@ Run the setup script:
 ```
 
 This will:
+
 - Create `monitoring/jmx_exporter/` directory
 - Download `jmx_prometheus_javaagent-0.20.0.jar` from Maven Central
 - Verify the download
 
 **Manual Download (if script fails):**
+
 ```powershell
 # Create directory
 New-Item -ItemType Directory -Path "monitoring\jmx_exporter" -Force
@@ -104,17 +112,20 @@ Invoke-WebRequest -Uri $url -OutFile "monitoring\jmx_exporter\jmx_prometheus_jav
 Ensure these files exist:
 
 **1. JMX Configuration** (`monitoring/jmx_exporter/kafka-jmx-config.yml`):
+
 - Defines which JMX metrics to export
 - Transforms JMX bean names to Prometheus metric names
 - Already created by this setup
 
 **2. Docker Compose** (`docker-compose.kafka.yml`):
+
 - Kafka service already updated with:
   - Port 7071 exposed for JMX metrics
   - Volume mount for JMX config
   - KAFKA_OPTS environment variable
 
 **3. Prometheus Config** (`monitoring/prometheus/prometheus.yml`):
+
 - Already configured to scrape `telco-kafka:7071/metrics`
 
 ### Step 3: Restart Kafka
@@ -130,12 +141,14 @@ Start-Sleep -Seconds 45
 ### Step 4: Verify JMX Exporter is Working
 
 **Test the JMX endpoint:**
+
 ```powershell
 # Should return Prometheus-formatted metrics
 curl http://localhost:7071/metrics | Select-Object -First 50
 ```
 
 **Expected output:**
+
 ```
 # HELP kafka_server_brokertopicmetrics_messagesinpersec ...
 # TYPE kafka_server_brokertopicmetrics_messagesinpersec gauge
@@ -150,6 +163,7 @@ jvm_threads_current 87
 Open Prometheus: http://localhost:9090/targets
 
 Look for **kafka-broker** target:
+
 - **State**: Should be **UP** (green)
 - **Endpoint**: `http://telco-kafka:7071/metrics`
 - **Last Scrape**: Recent timestamp
@@ -160,6 +174,7 @@ Look for **kafka-broker** target:
 Open Prometheus: http://localhost:9090/graph
 
 Try these queries:
+
 ```promql
 # Message rate per second
 rate(kafka_server_brokertopicmetrics_messagesinpersec[1m])
@@ -181,6 +196,7 @@ kafka_controller_kafkacontroller_activecontrollercount
 ### Problem: Port 7071 connection refused
 
 **Solution:**
+
 ```powershell
 # Check if Kafka container is running
 docker ps --filter "name=telco-kafka"
@@ -195,6 +211,7 @@ docker exec telco-kafka ls -lh /etc/jmx_exporter/
 ### Problem: JAR not found error
 
 **Check:**
+
 ```powershell
 # Verify JAR exists locally
 Get-Item .\monitoring\jmx_exporter\jmx_prometheus_javaagent-0.20.0.jar
@@ -206,6 +223,7 @@ Get-Item .\monitoring\jmx_exporter\jmx_prometheus_javaagent-0.20.0.jar
 ### Problem: No metrics returned
 
 **Debug:**
+
 ```powershell
 # Test from inside Kafka container
 docker exec telco-kafka curl localhost:7071/metrics
@@ -217,7 +235,9 @@ docker exec telco-kafka cat /etc/jmx_exporter/kafka-jmx-config.yml
 ### Problem: Prometheus shows kafka-broker as DOWN
 
 **Fix:**
+
 1. Restart Prometheus to reload configuration:
+
    ```powershell
    docker-compose -f docker-compose.monitoring.yml restart prometheus
    ```
@@ -240,6 +260,7 @@ KAFKA_OPTS: "-javaagent:/path/to/jmx_exporter.jar=7071:/path/to/config.yml"
 ```
 
 **Breakdown:**
+
 - `-javaagent:` - Tells JVM to load the agent JAR
 - `/etc/jmx_exporter/jmx_prometheus_javaagent-0.20.0.jar` - Path to JAR in container
 - `=7071` - Port to expose HTTP endpoint
@@ -260,6 +281,7 @@ rules:
 ```
 
 **How it works:**
+
 1. `whitelistObjectNames` - Filters which JMX MBeans to export
 2. `rules` - Transforms JMX bean names into Prometheus metric names
 3. `type` - Defines metric type (GAUGE, COUNTER, HISTOGRAM)
@@ -269,6 +291,7 @@ rules:
 ## Performance Impact
 
 **Resource Usage:**
+
 - **CPU**: ~1-2% additional overhead
 - **Memory**: ~50-100 MB for JMX Exporter agent
 - **Network**: ~5-10 KB/s for metric scraping
