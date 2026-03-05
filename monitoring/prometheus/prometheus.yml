@@ -74,7 +74,7 @@ scrape_configs:
   # PostgreSQL Exporter (for Airflow database)
   - job_name: "postgres-airflow"
     static_configs:
-      - targets: ["postgres-exporter-airflow:9188"]
+      - targets: ["postgres-exporter-airflow:9187"]
         labels:
           service: "postgres-airflow"
           component: "database"

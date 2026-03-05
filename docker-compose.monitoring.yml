@@ -110,8 +110,8 @@ services:
     container_name: telco-postgres-exporter-analytics
     environment:
       DATA_SOURCE_NAME: "postgresql://analytics_user:analytics_password@postgres-analytics:5433/analytics_db?sslmode=disable"
-    ports:
-      - "9187:9187"
+    # No external port - avoids conflict with postgres-exporter-airflow on 9187
+    # Prometheus accesses internally on 9187
     networks:
       - telco-network
     restart: unless-stopped
@@ -125,7 +125,7 @@ services:
     environment:
       DATA_SOURCE_NAME: "postgresql://airflow:airflow@postgres-airflow:5434/airflow?sslmode=disable"
     ports:
-      - "9188:9187"
+      - "9208:9187"
     networks:
       - telco-network
     restart: unless-stopped

@@ -85,7 +85,7 @@ services:
       HEALTH_CHECK_PORT: 8001
       ENVIRONMENT: development
     ports:
-      - "8001:8001"
+      - "8021:8001"
     volumes:
       - ./data:/app/data
       - ./kafka:/app/kafka
@@ -120,7 +120,7 @@ services:
       HEALTH_CHECK_PORT: 8002
       ENVIRONMENT: development
     ports:
-      - "8002:8002"
+      - "8022:8002"
     volumes:
       - ./artifacts:/app/artifacts
       - ./kafka:/app/kafka
@@ -156,7 +156,7 @@ services:
       HEALTH_CHECK_PORT: 8003
       ENVIRONMENT: development
     ports:
-      - "8003:8003"
+      - "8023:8003"
     volumes:
       - ./data:/app/data
       - ./kafka:/app/kafka
