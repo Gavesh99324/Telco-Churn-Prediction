@@ -1,4 +1,4 @@
-import { DataGrid, GridColDef } from "@mui/x-data-grid";
+import { DataGrid } from "@mui/x-data-grid";
 import { Box, Chip, Typography } from "@mui/material";
 import { PredictionHistory } from "../types";
 
@@ -6,19 +6,23 @@ interface HistoryTableProps {
   history: PredictionHistory[];
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type CellParams = { value: any; row: any };
+
 export default function HistoryTable({ history }: HistoryTableProps) {
-  const columns: GridColDef[] = [
+  const columns = [
     {
       field: "id",
       headerName: "ID",
       width: 100,
-      renderCell: (params) => `#${params.row.id.slice(-6)}`,
+      renderCell: (params: CellParams) => `#${params.row.id.slice(-6)}`,
     },
     {
       field: "timestamp",
       headerName: "Timestamp",
       width: 180,
-      renderCell: (params) => new Date(params.value).toLocaleString(),
+      renderCell: (params: CellParams) =>
+        new Date(params.value).toLocaleString(),
     },
     {
       field: "customerInfo",
@@ -30,7 +34,7 @@ export default function HistoryTable({ history }: HistoryTableProps) {
       field: "prediction",
       headerName: "Prediction",
       width: 130,
-      renderCell: (params) => (
+      renderCell: (params: CellParams) => (
         <Chip
           label={params.value === 1 ? "Churn" : "No Churn"}
           color={params.value === 1 ? "error" : "success"}
@@ -43,14 +47,14 @@ export default function HistoryTable({ history }: HistoryTableProps) {
       field: "probability",
       headerName: "Probability",
       width: 120,
-      renderCell: (params) => `${(params.value * 100).toFixed(1)}%`,
+      renderCell: (params: CellParams) => `${(params.value * 100).toFixed(1)}%`,
     },
     {
       field: "riskLevel",
       headerName: "Risk Level",
       width: 130,
-      renderCell: (params) => {
-        const color =
+      renderCell: (params: CellParams) => {
+        const color: "error" | "warning" | "success" =
           params.value === "High"
             ? "error"
             : params.value === "Medium"
@@ -70,8 +74,8 @@ export default function HistoryTable({ history }: HistoryTableProps) {
       field: "confidence",
       headerName: "Confidence",
       width: 130,
-      renderCell: (params) => {
-        const color =
+      renderCell: (params: CellParams) => {
+        const color: "success" | "warning" | "error" =
           params.value === "High"
             ? "success"
             : params.value === "Medium"
