@@ -86,11 +86,14 @@ export default function MetricsDashboard({ history }: MetricsDashboardProps) {
       <Grid container spacing={3} sx={{ mb: 4 }}>
         <Grid item xs={12} sm={6} md={3}>
           <Paper
-            elevation={2}
+            elevation={0}
             sx={{
               p: 2,
               textAlign: "center",
-              bgcolor: "primary.main",
+              background:
+                "linear-gradient(132deg, rgba(18, 118, 186, 0.88) 0%, rgba(54, 158, 232, 0.86) 100%)",
+              border: "1px solid rgba(142, 208, 255, 0.34)",
+              boxShadow: "0 12px 26px rgba(13, 97, 154, 0.34)",
               color: "white",
             }}
           >
@@ -103,11 +106,14 @@ export default function MetricsDashboard({ history }: MetricsDashboardProps) {
 
         <Grid item xs={12} sm={6} md={3}>
           <Paper
-            elevation={2}
+            elevation={0}
             sx={{
               p: 2,
               textAlign: "center",
-              bgcolor: "error.main",
+              background:
+                "linear-gradient(132deg, rgba(150, 29, 47, 0.92) 0%, rgba(225, 72, 97, 0.86) 100%)",
+              border: "1px solid rgba(255, 170, 182, 0.34)",
+              boxShadow: "0 12px 26px rgba(171, 38, 61, 0.3)",
               color: "white",
             }}
           >
@@ -120,11 +126,22 @@ export default function MetricsDashboard({ history }: MetricsDashboardProps) {
 
         <Grid item xs={12} sm={6} md={3}>
           <Paper
-            elevation={2}
+            elevation={0}
             sx={{
               p: 2,
               textAlign: "center",
-              bgcolor: metrics.churnRate > 50 ? "error.dark" : "success.dark",
+              background:
+                metrics.churnRate > 50
+                  ? "linear-gradient(132deg, rgba(112, 25, 42, 0.92) 0%, rgba(189, 56, 76, 0.88) 100%)"
+                  : "linear-gradient(132deg, rgba(24, 109, 61, 0.92) 0%, rgba(67, 182, 114, 0.88) 100%)",
+              border:
+                metrics.churnRate > 50
+                  ? "1px solid rgba(255, 166, 181, 0.32)"
+                  : "1px solid rgba(145, 241, 188, 0.34)",
+              boxShadow:
+                metrics.churnRate > 50
+                  ? "0 12px 26px rgba(148, 36, 57, 0.3)"
+                  : "0 12px 26px rgba(35, 130, 78, 0.3)",
               color: "white",
             }}
           >
@@ -137,11 +154,14 @@ export default function MetricsDashboard({ history }: MetricsDashboardProps) {
 
         <Grid item xs={12} sm={6} md={3}>
           <Paper
-            elevation={2}
+            elevation={0}
             sx={{
               p: 2,
               textAlign: "center",
-              bgcolor: "warning.main",
+              background:
+                "linear-gradient(132deg, rgba(179, 107, 8, 0.9) 0%, rgba(252, 166, 44, 0.86) 100%)",
+              border: "1px solid rgba(255, 215, 155, 0.34)",
+              boxShadow: "0 12px 24px rgba(165, 111, 28, 0.28)",
               color: "white",
             }}
           >
@@ -157,7 +177,7 @@ export default function MetricsDashboard({ history }: MetricsDashboardProps) {
       <Grid container spacing={3}>
         {/* Line Chart */}
         <Grid item xs={12} md={8}>
-          <Paper elevation={2} sx={{ p: 2 }}>
+          <Paper elevation={0} sx={{ p: 2 }}>
             <Typography variant="h6" gutterBottom>
               Churn Probability Trend (Last 20 Predictions)
             </Typography>
@@ -182,7 +202,7 @@ export default function MetricsDashboard({ history }: MetricsDashboardProps) {
 
         {/* Pie Chart */}
         <Grid item xs={12} md={4}>
-          <Paper elevation={2} sx={{ p: 2 }}>
+          <Paper elevation={0} sx={{ p: 2 }}>
             <Typography variant="h6" gutterBottom>
               Churn Distribution
             </Typography>

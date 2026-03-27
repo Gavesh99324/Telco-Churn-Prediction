@@ -78,7 +78,15 @@ export default function ResultsCard({ prediction, loading }: ResultsCardProps) {
       <Card
         sx={{
           mb: 3,
-          bgcolor: isChurn ? "error.dark" : "success.dark",
+          background: isChurn
+            ? "linear-gradient(120deg, rgba(123, 18, 32, 0.95) 0%, rgba(199, 41, 65, 0.88) 100%)"
+            : "linear-gradient(120deg, rgba(23, 88, 44, 0.94) 0%, rgba(60, 171, 102, 0.9) 100%)",
+          border: isChurn
+            ? "1px solid rgba(255, 159, 174, 0.35)"
+            : "1px solid rgba(145, 237, 184, 0.34)",
+          boxShadow: isChurn
+            ? "0 14px 30px rgba(186, 34, 56, 0.35)"
+            : "0 14px 30px rgba(55, 163, 95, 0.28)",
           color: "white",
           textAlign: "center",
         }}
@@ -113,9 +121,11 @@ export default function ResultsCard({ prediction, loading }: ResultsCardProps) {
           sx={{
             height: 10,
             borderRadius: 5,
-            bgcolor: "grey.300",
+            bgcolor: "rgba(154, 177, 212, 0.25)",
             "& .MuiLinearProgress-bar": {
-              bgcolor: isChurn ? "error.main" : "success.main",
+              background: isChurn
+                ? "linear-gradient(90deg, #ff6f83 0%, #ff4b63 100%)"
+                : "linear-gradient(90deg, #3bd37c 0%, #7fe3ab 100%)",
             },
           }}
         />
@@ -131,7 +141,12 @@ export default function ResultsCard({ prediction, loading }: ResultsCardProps) {
             <Chip
               label={prediction.risk_level}
               color={getRiskColor(prediction.risk_level)}
-              sx={{ fontWeight: "bold", fontSize: "0.9rem", width: "100%" }}
+              sx={{
+                fontWeight: "bold",
+                fontSize: "0.9rem",
+                width: "100%",
+                boxShadow: "0 8px 16px rgba(0, 0, 0, 0.16)",
+              }}
             />
           </Box>
         </Grid>
@@ -144,7 +159,12 @@ export default function ResultsCard({ prediction, loading }: ResultsCardProps) {
               icon={getConfidenceIcon(prediction.confidence)}
               label={prediction.confidence}
               color={getRiskColor(prediction.confidence)}
-              sx={{ fontWeight: "bold", fontSize: "0.9rem", width: "100%" }}
+              sx={{
+                fontWeight: "bold",
+                fontSize: "0.9rem",
+                width: "100%",
+                boxShadow: "0 8px 16px rgba(0, 0, 0, 0.16)",
+              }}
             />
           </Box>
         </Grid>

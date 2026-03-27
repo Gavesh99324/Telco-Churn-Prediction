@@ -40,23 +40,134 @@ function App() {
     palette: {
       mode: darkMode ? "dark" : "light",
       primary: {
-        main: "#1976d2",
+        main: darkMode ? "#33d1cc" : "#0f766e",
       },
       secondary: {
-        main: "#dc004e",
+        main: darkMode ? "#5bc0ff" : "#0369a1",
       },
       success: {
-        main: "#4caf50",
+        main: darkMode ? "#43c16f" : "#2e7d32",
       },
       warning: {
-        main: "#ff9800",
+        main: darkMode ? "#ffb347" : "#ed6c02",
       },
       error: {
-        main: "#f44336",
+        main: darkMode ? "#ff5b6e" : "#d32f2f",
+      },
+      background: {
+        default: darkMode ? "#040a17" : "#e6f5ff",
+        paper: darkMode ? "rgba(9, 24, 47, 0.72)" : "rgba(255, 255, 255, 0.85)",
+      },
+      text: {
+        primary: darkMode ? "#ebf4ff" : "#10213f",
+        secondary: darkMode ? "#9bb4d8" : "#3f5f87",
       },
     },
+    shape: {
+      borderRadius: 16,
+    },
     typography: {
-      fontFamily: "Roboto, Arial, sans-serif",
+      fontFamily: '"Space Grotesk", "Segoe UI", sans-serif',
+      h5: {
+        fontWeight: 700,
+        letterSpacing: "0.01em",
+      },
+      h6: {
+        fontWeight: 700,
+      },
+    },
+    components: {
+      MuiCssBaseline: {
+        styleOverrides: {
+          body: {
+            backgroundColor: darkMode ? "#040a17" : "#e6f5ff",
+            backgroundImage: darkMode
+              ? "radial-gradient(circle at 12% 8%, rgba(41, 138, 255, 0.24) 0%, rgba(41, 138, 255, 0) 38%), radial-gradient(circle at 82% 22%, rgba(51, 209, 204, 0.22) 0%, rgba(51, 209, 204, 0) 42%), linear-gradient(140deg, #040a17 0%, #071124 55%, #040a17 100%)"
+              : "radial-gradient(circle at 18% 10%, rgba(18, 148, 235, 0.2) 0%, rgba(18, 148, 235, 0) 40%), radial-gradient(circle at 84% 18%, rgba(20, 184, 166, 0.2) 0%, rgba(20, 184, 166, 0) 36%), linear-gradient(155deg, #ecf7ff 0%, #f5fbff 45%, #ebf6ff 100%)",
+            backgroundAttachment: "fixed",
+          },
+          "#root": {
+            minHeight: "100vh",
+          },
+        },
+      },
+      MuiAppBar: {
+        styleOverrides: {
+          root: {
+            background: darkMode
+              ? "linear-gradient(98deg, rgba(8, 21, 44, 0.9) 0%, rgba(6, 34, 70, 0.9) 55%, rgba(8, 30, 56, 0.9) 100%)"
+              : "linear-gradient(98deg, rgba(255, 255, 255, 0.9) 0%, rgba(236, 247, 255, 0.95) 100%)",
+            borderBottom: darkMode
+              ? "1px solid rgba(132, 176, 255, 0.18)"
+              : "1px solid rgba(35, 94, 180, 0.18)",
+            boxShadow: darkMode
+              ? "0 12px 30px rgba(1, 6, 18, 0.5)"
+              : "0 10px 24px rgba(36, 96, 168, 0.18)",
+            backdropFilter: "blur(10px)",
+          },
+        },
+      },
+      MuiPaper: {
+        styleOverrides: {
+          root: {
+            backgroundImage: darkMode
+              ? "linear-gradient(150deg, rgba(14, 34, 67, 0.88) 0%, rgba(8, 23, 45, 0.82) 100%)"
+              : "linear-gradient(145deg, rgba(255, 255, 255, 0.88) 0%, rgba(246, 251, 255, 0.95) 100%)",
+            border: darkMode
+              ? "1px solid rgba(104, 151, 241, 0.2)"
+              : "1px solid rgba(95, 141, 224, 0.2)",
+            boxShadow: darkMode
+              ? "0 14px 34px rgba(2, 8, 24, 0.4), inset 0 1px 0 rgba(166, 205, 255, 0.08)"
+              : "0 14px 30px rgba(60, 118, 193, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.7)",
+          },
+        },
+      },
+      MuiChip: {
+        styleOverrides: {
+          root: {
+            fontWeight: 600,
+            backdropFilter: "blur(4px)",
+          },
+        },
+      },
+      MuiOutlinedInput: {
+        styleOverrides: {
+          root: {
+            backgroundColor: darkMode
+              ? "rgba(7, 20, 40, 0.72)"
+              : "rgba(252, 254, 255, 0.9)",
+            "& .MuiOutlinedInput-notchedOutline": {
+              borderColor: darkMode
+                ? "rgba(121, 161, 233, 0.28)"
+                : "rgba(80, 122, 205, 0.25)",
+            },
+            "&:hover .MuiOutlinedInput-notchedOutline": {
+              borderColor: darkMode
+                ? "rgba(130, 192, 255, 0.45)"
+                : "rgba(39, 124, 243, 0.4)",
+            },
+            "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+              borderColor: darkMode ? "#33d1cc" : "#0ea5a5",
+              boxShadow: darkMode
+                ? "0 0 0 3px rgba(51, 209, 204, 0.18)"
+                : "0 0 0 3px rgba(14, 165, 165, 0.15)",
+            },
+          },
+        },
+      },
+      MuiButton: {
+        styleOverrides: {
+          containedPrimary: {
+            background: darkMode
+              ? "linear-gradient(92deg, #2dbeb7 0%, #42e0cc 100%)"
+              : "linear-gradient(92deg, #0f766e 0%, #14b8a6 100%)",
+            color: darkMode ? "#042126" : "#f2fffd",
+            boxShadow: darkMode
+              ? "0 10px 26px rgba(45, 190, 183, 0.35)"
+              : "0 10px 22px rgba(15, 118, 110, 0.25)",
+          },
+        },
+      },
     },
   });
 
@@ -126,7 +237,7 @@ function App() {
       <CssBaseline />
 
       {/* App Bar */}
-      <AppBar position="static" elevation={2}>
+      <AppBar position="static" elevation={0}>
         <Toolbar>
           <BrainIcon sx={{ mr: 2, fontSize: 32 }} />
           <Typography
@@ -144,13 +255,21 @@ function App() {
                 label={health.model_loaded ? "Model Ready" : "Model Not Loaded"}
                 color={health.model_loaded ? "success" : "error"}
                 size="small"
-                sx={{ mr: 2 }}
+                sx={{
+                  mr: 2,
+                  boxShadow: health.model_loaded
+                    ? "0 0 16px rgba(67, 193, 111, 0.4)"
+                    : "0 0 14px rgba(255, 91, 110, 0.32)",
+                }}
               />
               <Chip
                 label={`Uptime: ${Math.floor(health.uptime_seconds / 60)}m`}
                 variant="outlined"
                 size="small"
-                sx={{ mr: 2 }}
+                sx={{
+                  mr: 2,
+                  borderColor: "rgba(131, 171, 236, 0.35)",
+                }}
               />
             </>
           )}
@@ -180,7 +299,7 @@ function App() {
         <Grid container spacing={3}>
           {/* Left Column - Prediction Form */}
           <Grid item xs={12} md={6}>
-            <Paper elevation={3} sx={{ p: 3 }}>
+            <Paper elevation={0} sx={{ p: 3 }}>
               <Typography
                 variant="h6"
                 gutterBottom
@@ -200,7 +319,7 @@ function App() {
           <Grid item xs={12} md={6}>
             <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
               {/* Prediction Results */}
-              <Paper elevation={3} sx={{ p: 3 }}>
+              <Paper elevation={0} sx={{ p: 3 }}>
                 <Typography
                   variant="h6"
                   gutterBottom
@@ -213,7 +332,7 @@ function App() {
 
               {/* Model Info */}
               {modelInfo && (
-                <Paper elevation={3} sx={{ p: 3 }}>
+                <Paper elevation={0} sx={{ p: 3 }}>
                   <Typography
                     variant="h6"
                     gutterBottom
@@ -265,7 +384,7 @@ function App() {
 
           {/* Metrics Dashboard */}
           <Grid item xs={12}>
-            <Paper elevation={3} sx={{ p: 3 }}>
+            <Paper elevation={0} sx={{ p: 3 }}>
               <Typography
                 variant="h6"
                 gutterBottom
@@ -279,7 +398,7 @@ function App() {
 
           {/* Prediction History */}
           <Grid item xs={12}>
-            <Paper elevation={3} sx={{ p: 3 }}>
+            <Paper elevation={0} sx={{ p: 3 }}>
               <Typography
                 variant="h6"
                 gutterBottom

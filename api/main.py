@@ -207,6 +207,11 @@ def load_model_artifacts():
                     feature_names = list(loaded_features)
             logger.info(f"Feature names loaded: {len(feature_names)} features")
 
+        if not feature_names and hasattr(model, 'feature_names_in_'):
+            feature_names = list(model.feature_names_in_)
+            logger.info(
+                f"Feature names inferred from model: {len(feature_names)} features")
+
         logger.info("✅ All model artifacts loaded successfully")
         return True
 
@@ -306,24 +311,24 @@ def preprocess_customer_data(customer: CustomerData) -> pd.DataFrame:
                             'DeviceProtection', 'TechSupport', 'StreamingTV', 'StreamingMovies',
                             'Contract', 'PaymentMethod', 'tenure_group']
 
-        data = pd.get_dummies(data, columns=categorical_cols, drop_first=False)
+        data = pd.get_dummies(data, columns=categorical_cols, drop_first=True)
 
-        # Ensure all expected features are present
-        if feature_names:
-            for feature in feature_names:
-                if feature not in data.columns:
-                    data[feature] = 0
+        # Build expected schema from saved artifact first, then model fallback.
+        expected_features = feature_names
+        if not expected_features and model is not None and hasattr(model, 'feature_names_in_'):
+            expected_features = list(model.feature_names_in_)
 
-            # Reorder columns to match training
-            data = data[feature_names]
+        # Ensure all expected features are present and in exact training order.
+        if expected_features:
+            data = data.reindex(columns=expected_features, fill_value=0)
 
-        # Apply scaling
-        if scaler:
-            numerical_features = ['tenure', 'MonthlyCharges', 'TotalCharges',
-                                  'avg_charge_per_tenure', 'service_count']
-            for col in numerical_features:
-                if col in data.columns:
-                    data[col] = scaler.transform(data[[col]]).ravel()
+        # Apply scaling to the full feature vector if scaler is available.
+        if scaler is not None and expected_features:
+            data = pd.DataFrame(
+                scaler.transform(data),
+                columns=data.columns,
+                index=data.index
+            )
 
         return data
 

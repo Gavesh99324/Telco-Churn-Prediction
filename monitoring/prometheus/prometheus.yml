@@ -55,6 +55,15 @@ scrape_configs:
           service: "kafka-analytics"
           component: "analytics"
 
+  # FastAPI Prediction API
+  - job_name: "api"
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["telco-api:8000"]
+        labels:
+          service: "api"
+          component: "ml-api"
+
   # Kafka JMX Exporter (for Kafka broker metrics)
   - job_name: "kafka-broker"
     static_configs:

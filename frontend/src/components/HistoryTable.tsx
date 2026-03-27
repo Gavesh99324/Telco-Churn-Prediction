@@ -117,6 +117,23 @@ export default function HistoryTable({ history }: HistoryTableProps) {
         pageSizeOptions={[5, 10, 25, 50]}
         disableRowSelectionOnClick
         sx={{
+          border: "1px solid rgba(113, 151, 218, 0.28)",
+          borderRadius: 2,
+          backgroundColor: "rgba(7, 20, 40, 0.52)",
+          backdropFilter: "blur(6px)",
+          "& .MuiDataGrid-columnHeaders": {
+            backgroundColor: "rgba(16, 38, 74, 0.72)",
+            borderBottom: "1px solid rgba(113, 151, 218, 0.24)",
+          },
+          "& .MuiDataGrid-row": {
+            borderBottom: "1px solid rgba(113, 151, 218, 0.14)",
+          },
+          "& .MuiDataGrid-row:hover": {
+            backgroundColor: "rgba(35, 89, 164, 0.2)",
+          },
+          "& .MuiDataGrid-footerContainer": {
+            borderTop: "1px solid rgba(113, 151, 218, 0.24)",
+          },
           "& .MuiDataGrid-cell:focus": {
             outline: "none",
           },
