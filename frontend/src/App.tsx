@@ -205,7 +205,7 @@ function App() {
       const result = await apiService.predictChurn(customerData);
       setPrediction(result);
 
-      // Add to history
+       // Add to history
       const historyItem: PredictionHistory = {
         id: Date.now().toString(),
         timestamp: result.timestamp,
