@@ -2,6 +2,8 @@
 import sys
 import os
 import pickle
+import json
+import hashlib
 import pandas as pd
 import numpy as np
 import logging
@@ -44,6 +46,72 @@ class InferencePipeline:
         
         # Create output directory
         Path(self.output_dir).mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def _sha256_file(path: Path) -> str:
+        """Compute SHA256 digest for artifact compatibility checks."""
+        hasher = hashlib.sha256()
+        with open(path, 'rb') as f:
+            for chunk in iter(lambda: f.read(8192), b''):
+                hasher.update(chunk)
+        return hasher.hexdigest()
+
+    def validate_manifest_compatibility(self):
+        """Validate model and preprocessing artifacts against training manifest."""
+        manifest_path = Path(self.model_dir) / 'model_manifest.json'
+        if not manifest_path.exists():
+            raise FileNotFoundError(
+                f"Missing artifact manifest: {manifest_path}. "
+                "Re-run training pipeline to generate model_manifest.json"
+            )
+
+        with open(manifest_path, 'r', encoding='utf-8') as f:
+            manifest = json.load(f)
+
+        required_files = {
+            'best_model.pkl': Path(self.model_dir) / 'best_model.pkl',
+            'feature_names.pkl': Path(self.data_dir) / 'feature_names.pkl',
+            'label_encoders.pkl': Path(self.data_dir) / 'label_encoders.pkl',
+            'scaler.pkl': Path(self.data_dir) / 'scaler.pkl',
+        }
+
+        failures = []
+        expected_hashes = manifest.get('artifact_hashes', {})
+        for artifact_name, artifact_path in required_files.items():
+            if not artifact_path.exists():
+                failures.append(f"missing artifact file: {artifact_path}")
+                continue
+            expected_hash = expected_hashes.get(artifact_name)
+            if expected_hash is None:
+                failures.append(f"manifest missing hash for {artifact_name}")
+                continue
+            actual_hash = self._sha256_file(artifact_path)
+            if actual_hash != expected_hash:
+                failures.append(
+                    f"hash mismatch for {artifact_name}: "
+                    f"expected {expected_hash}, got {actual_hash}"
+                )
+
+        manifest_features = manifest.get('feature_names', [])
+        if manifest_features and self.feature_names != manifest_features:
+            failures.append("feature_names mismatch between manifest and current artifacts")
+
+        model = self.inference.model
+        if model is not None and hasattr(model, 'feature_names_in_'):
+            model_features = list(model.feature_names_in_)
+            if manifest_features and model_features != manifest_features:
+                failures.append(
+                    "model.feature_names_in_ mismatch with manifest feature_names"
+                )
+
+        if failures:
+            failure_text = "\n - ".join(failures)
+            raise ValueError(
+                "Artifact compatibility validation failed:\n"
+                f" - {failure_text}"
+            )
+
+        logger.info("✅ Artifact manifest compatibility validation passed")
 
     def load_preprocessors(self):
         """Load all preprocessing artifacts"""
@@ -135,6 +203,7 @@ class InferencePipeline:
         # Load artifacts
         self.load_preprocessors()
         self.load_model(model_name)
+        self.validate_manifest_compatibility()
         
         # Load test data
         X_test, y_test = self.load_test_data()

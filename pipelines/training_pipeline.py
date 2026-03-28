@@ -1,12 +1,15 @@
 """Complete model training pipeline for Telco Customer Churn with MLflow tracking"""
 import sys
-import os
 import pickle
+import json
+import hashlib
 import pandas as pd
 import numpy as np
 import logging
 from pathlib import Path
 from typing import Dict, Any, Tuple
+from datetime import datetime
+from mlflow.tracking import MlflowClient
 
 # Add project root to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -32,7 +35,9 @@ class TrainingPipeline:
                  model_dir: str = 'artifacts/models',
                  random_state: int = 42,
                  enable_mlflow: bool = True,
-                 mlflow_tracking_uri: str = 'http://localhost:5000'):
+                 mlflow_tracking_uri: str = 'http://localhost:5000',
+                 environment: str = 'development',
+                 require_mlflow_in_production: bool = True):
         """
         Initialize TrainingPipeline
         
@@ -47,6 +52,14 @@ class TrainingPipeline:
         self.model_dir = model_dir
         self.random_state = random_state
         self.enable_mlflow = enable_mlflow
+        self.environment = environment.lower()
+        self.require_mlflow_in_production = require_mlflow_in_production
+        self.mlflow_tracking_uri = mlflow_tracking_uri
+        self.quality_thresholds = {
+            'max_null_ratio': 0.01,
+            'min_minority_class_ratio': 0.10,
+            'max_drift_proxy': 0.60,
+        }
         
         # Initialize components
         self.builder = ModelBuilder(random_state=random_state)
@@ -56,6 +69,7 @@ class TrainingPipeline:
         # Initialize MLflow manager
         if self.enable_mlflow:
             try:
+                self._validate_mlflow_connectivity(mlflow_tracking_uri)
                 self.mlflow = MLflowManager(
                     tracking_uri=mlflow_tracking_uri,
                     experiment_name='telco-churn-prediction',
@@ -63,14 +77,159 @@ class TrainingPipeline:
                 )
                 logger.info("✅ MLflow tracking enabled")
             except Exception as e:
+                if self.environment == 'production' and self.require_mlflow_in_production:
+                    raise RuntimeError(
+                        "MLflow is mandatory in production mode, but initialization failed"
+                    ) from e
                 logger.warning(f"⚠️ MLflow initialization failed: {e}")
                 logger.warning("Continuing without MLflow tracking...")
                 self.enable_mlflow = False
         else:
+            if self.environment == 'production' and self.require_mlflow_in_production:
+                raise RuntimeError(
+                    "MLflow cannot be disabled in production mode"
+                )
             logger.info("MLflow tracking disabled")
         
         # Create output directory
         Path(self.model_dir).mkdir(parents=True, exist_ok=True)
+
+    def _validate_mlflow_connectivity(self, tracking_uri: str):
+        """Validate MLflow endpoint reachability for production-safe runs."""
+        client = MlflowClient(tracking_uri=tracking_uri)
+        client.search_experiments(max_results=1)
+
+    def _save_json_report(self, filename: str, payload: Dict[str, Any]):
+        """Persist training reports to model artifacts."""
+        report_path = Path(self.model_dir) / filename
+        with open(report_path, 'w', encoding='utf-8') as f:
+            json.dump(payload, f, indent=2, default=str)
+        logger.info("✅ Saved report: %s", report_path)
+        return str(report_path)
+
+    def _build_training_quality_report(
+        self,
+        X_train: pd.DataFrame,
+        X_test: pd.DataFrame,
+        y_train: np.ndarray,
+        y_test: np.ndarray
+    ) -> Dict[str, Any]:
+        """Build a quality report and drift proxy for train/test inputs."""
+        total_cells_train = max(1, X_train.shape[0] * X_train.shape[1])
+        total_cells_test = max(1, X_test.shape[0] * X_test.shape[1])
+        null_ratio_train = float(X_train.isna().sum().sum()) / total_cells_train
+        null_ratio_test = float(X_test.isna().sum().sum()) / total_cells_test
+
+        y_train_series = pd.Series(y_train)
+        y_test_series = pd.Series(y_test)
+        minority_train = float(y_train_series.value_counts(normalize=True).min())
+        minority_test = float(y_test_series.value_counts(normalize=True).min())
+
+        # Drift proxy: mean standardized mean-difference across feature columns.
+        mean_diff = (X_train.mean(numeric_only=True) - X_test.mean(numeric_only=True)).abs()
+        std_denom = X_train.std(numeric_only=True).replace(0, 1e-8)
+        drift_proxy = float((mean_diff / std_denom).mean())
+
+        return {
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'train_shape': list(X_train.shape),
+            'test_shape': list(X_test.shape),
+            'null_ratio_train': null_ratio_train,
+            'null_ratio_test': null_ratio_test,
+            'class_distribution_train': {
+                str(k): int(v)
+                for k, v in y_train_series.value_counts().to_dict().items()
+            },
+            'class_distribution_test': {
+                str(k): int(v)
+                for k, v in y_test_series.value_counts().to_dict().items()
+            },
+            'minority_class_ratio_train': minority_train,
+            'minority_class_ratio_test': minority_test,
+            'drift_proxy_smd_mean': drift_proxy,
+            'thresholds': self.quality_thresholds,
+        }
+
+    def _enforce_training_quality_gates(self, report: Dict[str, Any]):
+        """Fail fast when training quality gates are violated."""
+        failures = []
+
+        if report['null_ratio_train'] > self.quality_thresholds['max_null_ratio']:
+            failures.append(
+                "training null ratio gate failed: "
+                f"{report['null_ratio_train']:.4f} > "
+                f"{self.quality_thresholds['max_null_ratio']:.4f}"
+            )
+        if report['null_ratio_test'] > self.quality_thresholds['max_null_ratio']:
+            failures.append(
+                "test null ratio gate failed: "
+                f"{report['null_ratio_test']:.4f} > "
+                f"{self.quality_thresholds['max_null_ratio']:.4f}"
+            )
+        if report['minority_class_ratio_train'] < self.quality_thresholds['min_minority_class_ratio']:
+            failures.append(
+                "train class imbalance gate failed: "
+                f"{report['minority_class_ratio_train']:.4f} < "
+                f"{self.quality_thresholds['min_minority_class_ratio']:.4f}"
+            )
+        if report['drift_proxy_smd_mean'] > self.quality_thresholds['max_drift_proxy']:
+            failures.append(
+                "train/test drift proxy gate failed: "
+                f"{report['drift_proxy_smd_mean']:.4f} > "
+                f"{self.quality_thresholds['max_drift_proxy']:.4f}"
+            )
+
+        if failures:
+            failure_text = "\n - ".join(failures)
+            raise ValueError(
+                "Training quality gates failed:\n"
+                f" - {failure_text}"
+            )
+
+    @staticmethod
+    def _sha256_file(path: Path) -> str:
+        """Compute SHA256 digest for an artifact file."""
+        hasher = hashlib.sha256()
+        with open(path, 'rb') as f:
+            for chunk in iter(lambda: f.read(8192), b''):
+                hasher.update(chunk)
+        return hasher.hexdigest()
+
+    def _build_artifact_manifest(
+        self,
+        best_model_name: str,
+        best_model: Any,
+        quality_report: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Create manifest used to enforce train/infer artifact compatibility."""
+        feature_names_path = Path(self.data_dir) / 'feature_names.pkl'
+        label_encoders_path = Path(self.data_dir) / 'label_encoders.pkl'
+        scaler_path = Path(self.data_dir) / 'scaler.pkl'
+        best_model_path = Path(self.model_dir) / 'best_model.pkl'
+
+        with open(feature_names_path, 'rb') as f:
+            feature_data = pickle.load(f)
+            feature_names = feature_data.get('feature_names', [])
+
+        return {
+            'manifest_version': '1.0.0',
+            'generated_at': datetime.utcnow().isoformat() + 'Z',
+            'model_name': best_model_name,
+            'model_version': datetime.utcnow().strftime('%Y%m%d%H%M%S'),
+            'training_tracking_uri': self.mlflow_tracking_uri,
+            'feature_count': len(feature_names),
+            'feature_names': feature_names,
+            'model_has_feature_names_in': bool(
+                hasattr(best_model, 'feature_names_in_')
+            ),
+            'artifact_hashes': {
+                'best_model.pkl': self._sha256_file(best_model_path),
+                'feature_names.pkl': self._sha256_file(feature_names_path),
+                'label_encoders.pkl': self._sha256_file(label_encoders_path),
+                'scaler.pkl': self._sha256_file(scaler_path),
+            },
+            'training_quality': quality_report,
+        }
 
     def load_data(self) -> Tuple[pd.DataFrame, pd.DataFrame, np.ndarray, np.ndarray]:
         """Load preprocessed data from artifacts"""
@@ -498,6 +657,15 @@ class TrainingPipeline:
         """Internal method to execute pipeline phases"""
         # Load data
         X_train, X_test, y_train, y_test = self.load_data()
+
+        # Quality gates before model training starts.
+        quality_report = self._build_training_quality_report(
+            X_train, X_test, y_train, y_test
+        )
+        self._save_json_report('training_quality_report.json', quality_report)
+        self._enforce_training_quality_gates(quality_report)
+        if self.enable_mlflow:
+            self.mlflow.log_dict(quality_report, 'training_quality_report.json')
         
         # Phase 1: Baseline models
         baseline_results = self.train_baseline_models(X_train, y_train, X_test, y_test)
@@ -525,6 +693,28 @@ class TrainingPipeline:
         
         # Final comparison and best model selection
         best_name, best_f1, final_comparison = self.save_best_model()
+
+        # Build map of all trained candidates and persist final selected model.
+        trained_models = dict(baseline_results['models'])
+        if tuned_results and 'model' in tuned_results:
+            trained_models[f"{baseline_results['best_model_name']}_Tuned"] = tuned_results['model']
+        if smote_results and 'model' in smote_results:
+            trained_models['Best_Model_SMOTE'] = smote_results['model']
+        if ensemble_results:
+            trained_models['Voting_Classifier'] = ensemble_results['voting']['model']
+            trained_models['Stacking_Classifier'] = ensemble_results['stacking']['model']
+
+        selected_model = trained_models.get(best_name, baseline_results['best_model'])
+        self.trainer.save_model(selected_model, f'{self.model_dir}/best_model.pkl')
+
+        manifest = self._build_artifact_manifest(
+            best_model_name=best_name,
+            best_model=selected_model,
+            quality_report=quality_report
+        )
+        self._save_json_report('model_manifest.json', manifest)
+        if self.enable_mlflow:
+            self.mlflow.log_dict(manifest, 'model_manifest.json')
         
         logger.info("\n" + "="*80)
         logger.info("✅ TRAINING PIPELINE COMPLETE!")
@@ -537,6 +727,8 @@ class TrainingPipeline:
             'best_model_name': best_name,
             'best_f1_score': best_f1,
             'final_comparison': final_comparison,
+            'training_quality_report': quality_report,
+            'artifact_manifest': manifest,
             'baseline_results': baseline_results,
             'tuned_results': tuned_results,
             'smote_results': smote_results,
