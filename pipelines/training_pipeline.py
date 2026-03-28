@@ -1,4 +1,9 @@
 """Complete model training pipeline for Telco Customer Churn with MLflow tracking"""
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from utils.mlflow_utils import MLflowManager
+from src.model_evaluation import ModelEvaluator
+from src.model_training import ModelTrainer
+from src.model_building import ModelBuilder
 import sys
 import pickle
 import json
@@ -14,11 +19,6 @@ from mlflow.tracking import MlflowClient
 # Add project root to Python path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.model_building import ModelBuilder
-from src.model_training import ModelTrainer
-from src.model_evaluation import ModelEvaluator
-from utils.mlflow_utils import MLflowManager
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 
 logging.basicConfig(
     level=logging.INFO,
@@ -40,7 +40,7 @@ class TrainingPipeline:
                  require_mlflow_in_production: bool = True):
         """
         Initialize TrainingPipeline
-        
+
         Args:
             data_dir: Directory with preprocessed data
             model_dir: Directory to save trained models
@@ -60,12 +60,12 @@ class TrainingPipeline:
             'min_minority_class_ratio': 0.10,
             'max_drift_proxy': 0.60,
         }
-        
+
         # Initialize components
         self.builder = ModelBuilder(random_state=random_state)
         self.trainer = ModelTrainer(random_state=random_state)
         self.evaluator = ModelEvaluator()
-        
+
         # Initialize MLflow manager
         if self.enable_mlflow:
             try:
@@ -90,7 +90,7 @@ class TrainingPipeline:
                     "MLflow cannot be disabled in production mode"
                 )
             logger.info("MLflow tracking disabled")
-        
+
         # Create output directory
         Path(self.model_dir).mkdir(parents=True, exist_ok=True)
 
@@ -117,16 +117,19 @@ class TrainingPipeline:
         """Build a quality report and drift proxy for train/test inputs."""
         total_cells_train = max(1, X_train.shape[0] * X_train.shape[1])
         total_cells_test = max(1, X_test.shape[0] * X_test.shape[1])
-        null_ratio_train = float(X_train.isna().sum().sum()) / total_cells_train
+        null_ratio_train = float(
+            X_train.isna().sum().sum()) / total_cells_train
         null_ratio_test = float(X_test.isna().sum().sum()) / total_cells_test
 
         y_train_series = pd.Series(y_train)
         y_test_series = pd.Series(y_test)
-        minority_train = float(y_train_series.value_counts(normalize=True).min())
+        minority_train = float(
+            y_train_series.value_counts(normalize=True).min())
         minority_test = float(y_test_series.value_counts(normalize=True).min())
 
         # Drift proxy: mean standardized mean-difference across feature columns.
-        mean_diff = (X_train.mean(numeric_only=True) - X_test.mean(numeric_only=True)).abs()
+        mean_diff = (X_train.mean(numeric_only=True) -
+                     X_test.mean(numeric_only=True)).abs()
         std_denom = X_train.std(numeric_only=True).replace(0, 1e-8)
         drift_proxy = float((mean_diff / std_denom).mean())
 
@@ -234,13 +237,14 @@ class TrainingPipeline:
     def load_data(self) -> Tuple[pd.DataFrame, pd.DataFrame, np.ndarray, np.ndarray]:
         """Load preprocessed data from artifacts"""
         logger.info("Loading preprocessed data...")
-        
+
         X_train = pd.read_csv(f'{self.data_dir}/X_train.csv')
         X_test = pd.read_csv(f'{self.data_dir}/X_test.csv')
         y_train = pd.read_csv(f'{self.data_dir}/y_train.csv')['Churn'].values
         y_test = pd.read_csv(f'{self.data_dir}/y_test.csv')['Churn'].values
-        
-        logger.info(f"✅ Loaded: X_train={X_train.shape}, X_test={X_test.shape}")
+
+        logger.info(
+            f"✅ Loaded: X_train={X_train.shape}, X_test={X_test.shape}")
         return X_train, X_test, y_train, y_test
 
     def train_baseline_models(self, X_train, y_train, X_test, y_test) -> Dict:
@@ -248,10 +252,10 @@ class TrainingPipeline:
         logger.info("\n" + "="*70)
         logger.info("PHASE 1: BASELINE MODEL TRAINING")
         logger.info("="*70)
-        
+
         # Build all models
         models = self.builder.build_all_models()
-        
+
         # Train and evaluate each
         trained_models = {}
         for name, model in models.items():
@@ -264,16 +268,17 @@ class TrainingPipeline:
                         'phase': 'baseline',
                         'random_state': self.random_state
                     })
-                    
+
                     # Train
-                    trained_model, train_info = self.trainer.train(model, X_train, y_train, name)
+                    trained_model, train_info = self.trainer.train(
+                        model, X_train, y_train, name)
                     trained_models[name] = trained_model
-                    
+
                     # Evaluate
                     results = self.evaluator.evaluate_model(
                         trained_model, X_train, y_train, X_test, y_test, name
                     )
-                    
+
                     # Log metrics to MLflow
                     self.mlflow.log_metrics({
                         'train_accuracy': results['train_accuracy'],
@@ -286,35 +291,37 @@ class TrainingPipeline:
                         'test_f1': results['test_f1'],
                         'test_roc_auc': results['test_roc_auc']
                     })
-                    
+
                     # Log confusion matrix as dict
                     self.mlflow.log_dict(
-                        {'confusion_matrix': results['confusion_matrix'].tolist()},
+                        {'confusion_matrix': results['confusion_matrix'].tolist(
+                        )},
                         'confusion_matrix.json'
                     )
             else:
                 # Train without MLflow
-                trained_model, train_info = self.trainer.train(model, X_train, y_train, name)
+                trained_model, train_info = self.trainer.train(
+                    model, X_train, y_train, name)
                 trained_models[name] = trained_model
                 self.evaluator.evaluate_model(
                     trained_model, X_train, y_train, X_test, y_test, name
                 )
-        
+
         # Compare all models
         comparison_df = self.evaluator.compare_models(
             save_path=f'{self.model_dir}/baseline_comparison.csv'
         )
-        
+
         # Log comparison to MLflow
         if self.enable_mlflow:
             self.mlflow.log_dataframe(comparison_df, 'baseline_comparison.csv')
-        
+
         # Get best model
         best_model_name = comparison_df.iloc[0]['Model']
         best_model = trained_models[best_model_name]
-        
+
         logger.info(f"\n🏆 BEST BASELINE MODEL: {best_model_name}")
-        
+
         return {
             'models': trained_models,
             'best_model_name': best_model_name,
@@ -323,12 +330,12 @@ class TrainingPipeline:
         }
 
     def hyperparameter_tuning(self, X_train, y_train, X_test, y_test,
-                             best_model_name: str):
+                              best_model_name: str):
         """Perform hyperparameter tuning on best model"""
         logger.info("\n" + "="*70)
         logger.info("PHASE 2: HYPERPARAMETER TUNING")
         logger.info("="*70)
-        
+
         # Define param grids based on model type
         if 'Random Forest' in best_model_name:
             param_grid = {
@@ -340,7 +347,7 @@ class TrainingPipeline:
                 'bootstrap': [True, False]
             }
             base_model = RandomForestClassifier(random_state=self.random_state)
-            
+
         elif 'Gradient Boosting' in best_model_name:
             param_grid = {
                 'n_estimators': [100, 200, 300],
@@ -349,11 +356,13 @@ class TrainingPipeline:
                 'min_samples_split': [2, 5, 10],
                 'subsample': [0.8, 1.0]
             }
-            base_model = GradientBoostingClassifier(random_state=self.random_state)
+            base_model = GradientBoostingClassifier(
+                random_state=self.random_state)
         else:
-            logger.warning(f"No tuning grid for {best_model_name}, skipping tuning")
+            logger.warning(
+                f"No tuning grid for {best_model_name}, skipping tuning")
             return None
-        
+
         # Start MLflow run for hyperparameter tuning
         if self.enable_mlflow:
             with self.mlflow.start_run(run_name=f"tuning_{best_model_name}", nested=True):
@@ -365,23 +374,25 @@ class TrainingPipeline:
                     'scoring': 'f1'
                 })
                 self.mlflow.log_dict(param_grid, 'param_grid.json')
-                
+
                 # Perform grid search
                 tuned_model, tuning_info = self.trainer.hyperparameter_tuning_grid(
                     base_model, param_grid, X_train, y_train,
                     model_name=f"{best_model_name}_Tuned", cv=5, scoring='f1'
                 )
-                
+
                 # Log best parameters
-                self.mlflow.log_params({f'best_{k}': v for k, v in tuning_info['best_params'].items()})
-                self.mlflow.log_metrics({'best_cv_score': tuning_info['best_score']})
-                
+                self.mlflow.log_params(
+                    {f'best_{k}': v for k, v in tuning_info['best_params'].items()})
+                self.mlflow.log_metrics(
+                    {'best_cv_score': tuning_info['best_score']})
+
                 # Evaluate tuned model
                 tuned_results = self.evaluator.evaluate_model(
                     tuned_model, X_train, y_train, X_test, y_test,
                     f"{best_model_name}_Tuned"
                 )
-                
+
                 # Log tuned model metrics
                 self.mlflow.log_metrics({
                     'tuned_test_accuracy': tuned_results['test_accuracy'],
@@ -398,10 +409,11 @@ class TrainingPipeline:
                 tuned_model, X_train, y_train, X_test, y_test,
                 f"{best_model_name}_Tuned"
             )
-        
+
         # Save tuned model
-        self.trainer.save_model(tuned_model, f'{self.model_dir}/best_tuned_model.pkl')
-        
+        self.trainer.save_model(
+            tuned_model, f'{self.model_dir}/best_tuned_model.pkl')
+
         return {
             'model': tuned_model,
             'results': tuned_results,
@@ -413,11 +425,11 @@ class TrainingPipeline:
         logger.info("\n" + "="*70)
         logger.info("PHASE 3: TRAINING WITH SMOTE")
         logger.info("="*70)
-        
+
         # Clone model to avoid modifying original
         import copy
         smote_model = copy.deepcopy(best_model)
-        
+
         # Start MLflow run for SMOTE training
         if self.enable_mlflow:
             with self.mlflow.start_run(run_name="smote_training", nested=True):
@@ -427,22 +439,22 @@ class TrainingPipeline:
                     'k_neighbors': 5,
                     'sampling_strategy': 'auto'
                 })
-                
+
                 # Train with SMOTE
                 smote_trained, smote_info = self.trainer.train_with_smote(
                     smote_model, X_train, y_train,
                     model_name="Best_Model_SMOTE", k_neighbors=5
                 )
-                
+
                 # Log SMOTE distribution info
                 self.mlflow.log_dict(smote_info, 'smote_info.json')
-                
+
                 # Evaluate
                 smote_results = self.evaluator.evaluate_model(
                     smote_trained, X_train, y_train, X_test, y_test,
                     "Best_Model_SMOTE"
                 )
-                
+
                 # Log SMOTE model metrics
                 self.mlflow.log_metrics({
                     'smote_train_f1': smote_results['train_f1'],
@@ -460,7 +472,7 @@ class TrainingPipeline:
                 smote_trained, X_train, y_train, X_test, y_test,
                 "Best_Model_SMOTE"
             )
-        
+
         return {
             'model': smote_trained,
             'results': smote_results
@@ -471,7 +483,7 @@ class TrainingPipeline:
         logger.info("\n" + "="*70)
         logger.info("PHASE 4: ENSEMBLE MODELS")
         logger.info("="*70)
-        
+
         # Voting Classifier
         if self.enable_mlflow:
             with self.mlflow.start_run(run_name="voting_classifier", nested=True):
@@ -480,28 +492,30 @@ class TrainingPipeline:
                     'phase': 'ensemble',
                     'voting_type': 'soft'
                 })
-                
-                voting_clf = self.builder.build_voting_classifier(use_smote_params=False)
+
+                voting_clf = self.builder.build_voting_classifier(
+                    use_smote_params=False)
                 voting_model, _ = self.trainer.train(
                     voting_clf, X_train, y_train, "Voting_Classifier"
                 )
                 voting_results = self.evaluator.evaluate_model(
                     voting_model, X_train, y_train, X_test, y_test, "Voting_Classifier"
                 )
-                
+
                 self.mlflow.log_metrics({
                     'voting_test_f1': voting_results['test_f1'],
                     'voting_test_roc_auc': voting_results['test_roc_auc']
                 })
         else:
-            voting_clf = self.builder.build_voting_classifier(use_smote_params=False)
+            voting_clf = self.builder.build_voting_classifier(
+                use_smote_params=False)
             voting_model, _ = self.trainer.train(
                 voting_clf, X_train, y_train, "Voting_Classifier"
             )
             voting_results = self.evaluator.evaluate_model(
                 voting_model, X_train, y_train, X_test, y_test, "Voting_Classifier"
             )
-        
+
         # Stacking Classifier
         if self.enable_mlflow:
             with self.mlflow.start_run(run_name="stacking_classifier", nested=True):
@@ -510,28 +524,30 @@ class TrainingPipeline:
                     'phase': 'ensemble',
                     'cv_folds': 5
                 })
-                
-                stacking_clf = self.builder.build_stacking_classifier(use_smote_params=False)
+
+                stacking_clf = self.builder.build_stacking_classifier(
+                    use_smote_params=False)
                 stacking_model, _ = self.trainer.train(
                     stacking_clf, X_train, y_train, "Stacking_Classifier"
                 )
                 stacking_results = self.evaluator.evaluate_model(
                     stacking_model, X_train, y_train, X_test, y_test, "Stacking_Classifier"
                 )
-                
+
                 self.mlflow.log_metrics({
                     'stacking_test_f1': stacking_results['test_f1'],
                     'stacking_test_roc_auc': stacking_results['test_roc_auc']
                 })
         else:
-            stacking_clf = self.builder.build_stacking_classifier(use_smote_params=False)
+            stacking_clf = self.builder.build_stacking_classifier(
+                use_smote_params=False)
             stacking_model, _ = self.trainer.train(
                 stacking_clf, X_train, y_train, "Stacking_Classifier"
             )
             stacking_results = self.evaluator.evaluate_model(
                 stacking_model, X_train, y_train, X_test, y_test, "Stacking_Classifier"
             )
-        
+
         return {
             'voting': {'model': voting_model, 'results': voting_results},
             'stacking': {'model': stacking_model, 'results': stacking_results}
@@ -542,23 +558,23 @@ class TrainingPipeline:
         logger.info("\n" + "="*70)
         logger.info("SELECTING BEST MODEL")
         logger.info("="*70)
-        
+
         # Compare all models
         final_comparison = self.evaluator.compare_models(
             save_path=f'{self.model_dir}/final_comparison.csv'
         )
-        
+
         # Log final comparison to MLflow
         if self.enable_mlflow:
             self.mlflow.log_dataframe(final_comparison, 'final_comparison.csv')
-        
+
         # Get absolute best
         best_model_name = final_comparison.iloc[0]['Model']
         best_f1 = final_comparison.iloc[0]['Test F1']
-        
+
         logger.info(f"\n🏆 FINAL BEST MODEL: {best_model_name}")
         logger.info(f"   Test F1 Score: {best_f1:.4f}")
-        
+
         return best_model_name, best_f1, final_comparison
 
     def run(self):
@@ -566,7 +582,7 @@ class TrainingPipeline:
         logger.info("\n" + "="*80)
         logger.info("🚀 STARTING COMPLETE TRAINING PIPELINE")
         logger.info("="*80)
-        
+
         # Start parent MLflow run for entire pipeline
         if self.enable_mlflow:
             with self.mlflow.start_run(run_name="complete_training_pipeline"):
@@ -582,16 +598,16 @@ class TrainingPipeline:
                     'pipeline_type': 'training',
                     'version': '1.0'
                 })
-                
+
                 # Execute pipeline phases
                 results = self._execute_pipeline()
-                
+
                 # Log final results
                 self.mlflow.log_metrics({
                     'final_best_f1': results['best_f1_score'],
                     'num_models_trained': 8  # 5 baseline + 2 ensemble + 1 SMOTE
                 })
-                
+
                 # Log pipeline summary
                 summary = {
                     'best_model': results['best_model_name'],
@@ -599,25 +615,28 @@ class TrainingPipeline:
                     'phases_completed': ['baseline', 'tuning', 'smote', 'ensemble']
                 }
                 self.mlflow.log_dict(summary, 'pipeline_summary.json')
-                
+
                 # Register and promote best model to Production
                 logger.info("\n" + "="*70)
                 logger.info("🎯 REGISTERING BEST MODEL TO PRODUCTION")
                 logger.info("="*70)
-                
+
                 try:
                     # Find the best run by test_f1 metric
-                    best_run = self.mlflow.get_best_run(metric_name="test_f1", ascending=False)
-                    
+                    best_run = self.mlflow.get_best_run(
+                        metric_name="test_f1", ascending=False)
+
                     if best_run:
                         run_id = best_run.info.run_id
                         model_uri = f"runs:/{run_id}/model"
                         model_name = "telco-churn-best-model"
-                        
+
                         logger.info(f"📦 Best run ID: {run_id}")
-                        logger.info(f"🏆 Best model: {results['best_model_name']}")
-                        logger.info(f"📈 Test F1: {results['best_f1_score']:.4f}")
-                        
+                        logger.info(
+                            f"🏆 Best model: {results['best_model_name']}")
+                        logger.info(
+                            f"📈 Test F1: {results['best_f1_score']:.4f}")
+
                         # Register the model
                         version = self.mlflow.register_model(
                             model_uri=model_uri,
@@ -630,7 +649,7 @@ class TrainingPipeline:
                             },
                             description=f"Best model from training pipeline: {results['best_model_name']} with F1={results['best_f1_score']:.4f}"
                         )
-                        
+
                         if version:
                             # Transition to Production stage
                             self.mlflow.transition_model_stage(
@@ -639,20 +658,22 @@ class TrainingPipeline:
                                 stage="Production",
                                 archive_existing=True
                             )
-                            logger.info(f"✅ Model promoted to Production (version {version})")
+                            logger.info(
+                                f"✅ Model promoted to Production (version {version})")
                         else:
                             logger.warning("⚠️  Model registration failed")
                     else:
-                        logger.warning("⚠️  No best run found for model registration")
+                        logger.warning(
+                            "⚠️  No best run found for model registration")
                 except Exception as e:
                     logger.error(f"❌ Failed to register/promote model: {e}")
-                
+
                 logger.info("✅ MLflow tracking completed")
                 return results
         else:
             # Run without MLflow
             return self._execute_pipeline()
-    
+
     def _execute_pipeline(self):
         """Internal method to execute pipeline phases"""
         # Load data
@@ -665,32 +686,35 @@ class TrainingPipeline:
         self._save_json_report('training_quality_report.json', quality_report)
         self._enforce_training_quality_gates(quality_report)
         if self.enable_mlflow:
-            self.mlflow.log_dict(quality_report, 'training_quality_report.json')
-        
+            self.mlflow.log_dict(
+                quality_report, 'training_quality_report.json')
+
         # Phase 1: Baseline models
-        baseline_results = self.train_baseline_models(X_train, y_train, X_test, y_test)
-        
+        baseline_results = self.train_baseline_models(
+            X_train, y_train, X_test, y_test)
+
         # Save best baseline model
         self.trainer.save_model(
             baseline_results['best_model'],
             f'{self.model_dir}/best_model.pkl'
         )
-        
+
         # Phase 2: Hyperparameter tuning
         tuned_results = self.hyperparameter_tuning(
             X_train, y_train, X_test, y_test,
             baseline_results['best_model_name']
         )
-        
+
         # Phase 3: SMOTE training
         smote_results = self.train_with_smote(
             X_train, y_train, X_test, y_test,
             baseline_results['best_model']
         )
-        
+
         # Phase 4: Ensemble models
-        ensemble_results = self.train_ensemble_models(X_train, y_train, X_test, y_test)
-        
+        ensemble_results = self.train_ensemble_models(
+            X_train, y_train, X_test, y_test)
+
         # Final comparison and best model selection
         best_name, best_f1, final_comparison = self.save_best_model()
 
@@ -704,8 +728,10 @@ class TrainingPipeline:
             trained_models['Voting_Classifier'] = ensemble_results['voting']['model']
             trained_models['Stacking_Classifier'] = ensemble_results['stacking']['model']
 
-        selected_model = trained_models.get(best_name, baseline_results['best_model'])
-        self.trainer.save_model(selected_model, f'{self.model_dir}/best_model.pkl')
+        selected_model = trained_models.get(
+            best_name, baseline_results['best_model'])
+        self.trainer.save_model(
+            selected_model, f'{self.model_dir}/best_model.pkl')
 
         manifest = self._build_artifact_manifest(
             best_model_name=best_name,
@@ -715,14 +741,14 @@ class TrainingPipeline:
         self._save_json_report('model_manifest.json', manifest)
         if self.enable_mlflow:
             self.mlflow.log_dict(manifest, 'model_manifest.json')
-        
+
         logger.info("\n" + "="*80)
         logger.info("✅ TRAINING PIPELINE COMPLETE!")
         logger.info("="*80)
         logger.info(f"\n📊 Results saved to: {self.model_dir}")
         logger.info(f"🏆 Best model: {best_name}")
         logger.info(f"📈 Best F1 Score: {best_f1:.4f}")
-        
+
         return {
             'best_model_name': best_name,
             'best_f1_score': best_f1,

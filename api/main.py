@@ -1,32 +1,63 @@
-"""FastAPI REST API for Churn Prediction Model Serving"""
-from utils.health_check import HealthCheckServer
-from utils.metrics import MetricsCollector
-from utils.config import load_config
-import os
-import sys
+"""FastAPI REST API for churn prediction model serving."""
 import logging
+import os
 import pickle
-import pandas as pd
-import numpy as np
 from datetime import datetime
-from typing import Dict, List, Optional, Any
 from pathlib import Path
+from typing import Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException, status
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field, validator
 import joblib
+try:
+    import pandas as pd
+except ModuleNotFoundError:  # pragma: no cover - handled in runtime checks
+    pd = None
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field, validator
 
-# Add project root to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.config import load_config
+from utils.metrics import MetricsCollector
 
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='{"timestamp": "%(asctime)s", "level": "%(levelname)s", "message": "%(message)s"}',
+    format=(
+        '{"timestamp": "%(asctime)s", '
+        '"level": "%(levelname)s", '
+        '"message": "%(message)s"}'
+    ),
 )
 logger = logging.getLogger(__name__)
+
+
+def _to_bool(value: str, default: bool = False) -> bool:
+    if value is None:
+        return default
+    return value.lower() in {'1', 'true', 'yes', 'on'}
+
+
+APP_ENV = os.getenv('ENVIRONMENT', 'development').lower()
+LOCAL_ENVIRONMENTS = {'development', 'dev', 'local', 'test'}
+IS_NON_LOCAL = APP_ENV not in LOCAL_ENVIRONMENTS
+
+CORS_ALLOWED_ORIGINS = [
+    origin.strip() for origin in os.getenv(
+        'CORS_ALLOWED_ORIGINS',
+        'http://localhost:3000,http://localhost:3001'
+    ).split(',') if origin.strip()
+]
+
+API_AUTH_ENABLED = _to_bool(
+    os.getenv('API_AUTH_ENABLED'),
+    default=IS_NON_LOCAL
+)
+API_AUTH_TOKEN = os.getenv('API_AUTH_TOKEN', '')
+
+MAX_REQUEST_BYTES = int(os.getenv('API_MAX_REQUEST_BYTES', '1048576'))
+MAX_BATCH_SIZE = max(1, min(1000, int(os.getenv('API_MAX_BATCH_SIZE', '200'))))
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -40,9 +71,9 @@ app = FastAPI(
 # CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=CORS_ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=['GET', 'POST', 'OPTIONS'],
     allow_headers=["*"],
 )
 
@@ -155,6 +186,14 @@ class ModelInfo(BaseModel):
     version: str
 
 
+class ErrorResponse(BaseModel):
+    """Standardized API error response."""
+    error_code: str
+    message: str
+    timestamp: str
+    details: Optional[Dict] = None
+
+
 # Global model and artifacts
 model = None
 scaler = None
@@ -162,6 +201,154 @@ label_encoders = None
 feature_names = None
 model_path = None
 start_time = datetime.now()
+dependency_status: Dict[str, Dict] = {}
+startup_errors: List[str] = []
+
+
+def _error_payload(
+    error_code: str,
+    message: str,
+    details: Optional[Dict] = None
+) -> Dict:
+    return {
+        'error_code': error_code,
+        'message': message,
+        'timestamp': datetime.utcnow().isoformat() + 'Z',
+        'details': details,
+    }
+
+
+def raise_api_error(
+    error_code: str,
+    message: str,
+    http_status: int,
+    details: Optional[Dict] = None
+):
+    raise HTTPException(
+        status_code=http_status,
+        detail=_error_payload(error_code, message, details)
+    )
+
+
+def _dependency_entry(path: Path, required: bool) -> Dict:
+    exists = path.exists()
+    return {
+        'path': str(path),
+        'required': required,
+        'exists': exists,
+    }
+
+
+def get_artifact_paths() -> Dict[str, Path]:
+    config = load_config()
+    models_dir = Path(config.get('models_dir', './artifacts/models'))
+    data_dir = Path(config.get('artifacts_dir', './artifacts')) / 'data'
+    return {
+        'model': models_dir / 'best_model.pkl',
+        'scaler': data_dir / 'scaler.pkl',
+        'encoders': data_dir / 'label_encoders.pkl',
+        'features': data_dir / 'feature_names.pkl',
+    }
+
+
+def validate_startup_dependencies() -> Dict[str, Dict]:
+    paths = get_artifact_paths()
+    dependencies = {
+        'model': _dependency_entry(paths['model'], required=True),
+        'scaler': _dependency_entry(paths['scaler'], required=False),
+        'encoders': _dependency_entry(paths['encoders'], required=False),
+        'features': _dependency_entry(paths['features'], required=False),
+    }
+    dependencies['all_required_available'] = all(
+        dep['exists'] for dep in dependencies.values()
+        if isinstance(dep, dict) and dep.get('required')
+    )
+    return dependencies
+
+
+def require_auth(x_api_key: Optional[str] = Header(None, alias='X-API-Key')):
+    """Gateway-ready auth hook for non-local deployments."""
+    if not API_AUTH_ENABLED:
+        return
+
+    if not API_AUTH_TOKEN:
+        raise_api_error(
+            'AUTH_CONFIG_ERROR',
+            'API authentication is enabled but API_AUTH_TOKEN is not set',
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    if x_api_key != API_AUTH_TOKEN:
+        raise_api_error(
+            'UNAUTHORIZED',
+            'Invalid or missing API key',
+            status.HTTP_401_UNAUTHORIZED,
+        )
+
+
+@app.middleware('http')
+async def request_size_middleware(request: Request, call_next):
+    """Protect API from oversized request payloads."""
+    if request.method in {'POST', 'PUT', 'PATCH'}:
+        content_length = request.headers.get('content-length')
+        if content_length is not None:
+            try:
+                content_length_int = int(content_length)
+            except ValueError:
+                content_length_int = 0
+
+            if content_length_int > MAX_REQUEST_BYTES:
+                payload = _error_payload(
+                    'REQUEST_TOO_LARGE',
+                    (
+                        'Request exceeds max allowed size '
+                        f'({MAX_REQUEST_BYTES} bytes)'
+                    ),
+                    details={'max_request_bytes': MAX_REQUEST_BYTES}
+                )
+                return JSONResponse(
+                    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    content=payload
+                )
+    return await call_next(request)
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(_: Request, exc: HTTPException):
+    detail = exc.detail
+    if isinstance(detail, dict) and 'error_code' in detail:
+        return JSONResponse(status_code=exc.status_code, content=detail)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=_error_payload('HTTP_ERROR', str(detail))
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(
+    _: Request,
+    exc: RequestValidationError
+):
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content=_error_payload(
+            'VALIDATION_ERROR',
+            'Request validation failed',
+            details={'errors': exc.errors()}
+        )
+    )
+
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(_: Request, exc: Exception):
+    logger.exception('Unhandled API error: %s', exc)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content=_error_payload(
+            'INTERNAL_SERVER_ERROR',
+            'An unexpected error occurred',
+        )
+    )
 
 
 def load_model_artifacts():
@@ -169,32 +356,29 @@ def load_model_artifacts():
     global model, scaler, label_encoders, feature_names, model_path
 
     try:
-        # Load configuration
-        config = load_config()
-        models_dir = Path(config.get('models_dir', './artifacts/models'))
-        data_dir = Path(config.get('artifacts_dir', './artifacts')) / 'data'
+        artifact_paths = get_artifact_paths()
 
         # Load model
-        model_path = models_dir / 'best_model.pkl'
+        model_path = artifact_paths['model']
         if not model_path.exists():
-            logger.error(f"Model not found at {model_path}")
+            logger.error('Model not found at %s', model_path)
             return False
 
         model = joblib.load(model_path)
-        logger.info(f"Model loaded from {model_path}")
+        logger.info('Model loaded from %s', model_path)
 
         # Load preprocessing artifacts
-        scaler_path = data_dir / 'scaler.pkl'
+        scaler_path = artifact_paths['scaler']
         if scaler_path.exists():
             scaler = joblib.load(scaler_path)
-            logger.info(f"Scaler loaded from {scaler_path}")
+            logger.info('Scaler loaded from %s', scaler_path)
 
-        encoders_path = data_dir / 'label_encoders.pkl'
+        encoders_path = artifact_paths['encoders']
         if encoders_path.exists():
             label_encoders = joblib.load(encoders_path)
-            logger.info(f"Label encoders loaded from {encoders_path}")
+            logger.info('Label encoders loaded from %s', encoders_path)
 
-        features_path = data_dir / 'feature_names.pkl'
+        features_path = artifact_paths['features']
         if features_path.exists():
             with open(features_path, 'rb') as f:
                 loaded_features = pickle.load(f)
@@ -205,24 +389,37 @@ def load_model_artifacts():
                     feature_names = loaded_features
                 else:
                     feature_names = list(loaded_features)
-            logger.info(f"Feature names loaded: {len(feature_names)} features")
+            logger.info(
+                'Feature names loaded: %s features',
+                len(feature_names)
+            )
 
         if not feature_names and hasattr(model, 'feature_names_in_'):
             feature_names = list(model.feature_names_in_)
             logger.info(
-                f"Feature names inferred from model: {len(feature_names)} features")
+                'Feature names inferred from model: %s',
+                len(feature_names)
+            )
 
-        logger.info("✅ All model artifacts loaded successfully")
+        logger.info('All model artifacts loaded successfully')
         return True
 
     except Exception as e:
-        logger.error(f"Error loading model artifacts: {str(e)}")
+        logger.error('Error loading model artifacts: %s', str(e))
         return False
 
 
-def preprocess_customer_data(customer: CustomerData) -> pd.DataFrame:
+def preprocess_customer_data(customer: CustomerData) -> 'pd.DataFrame':
     """Preprocess customer data for prediction"""
     try:
+        if pd is None:
+            raise_api_error(
+                'DEPENDENCY_MISSING',
+                'pandas is required for preprocessing but is not installed',
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                details={'dependency': 'pandas'}
+            )
+
         # Convert to DataFrame
         data = pd.DataFrame([customer.dict()])
 
@@ -307,15 +504,22 @@ def preprocess_customer_data(customer: CustomerData) -> pd.DataFrame:
                                               0] if x in le.classes_ else 0)
 
         # One-hot encoding for categorical features (including tenure_group)
-        categorical_cols = ['MultipleLines', 'InternetService', 'OnlineSecurity', 'OnlineBackup',
-                            'DeviceProtection', 'TechSupport', 'StreamingTV', 'StreamingMovies',
-                            'Contract', 'PaymentMethod', 'tenure_group']
+        categorical_cols = [
+            'MultipleLines', 'InternetService', 'OnlineSecurity',
+            'OnlineBackup', 'DeviceProtection', 'TechSupport',
+            'StreamingTV', 'StreamingMovies', 'Contract',
+            'PaymentMethod', 'tenure_group'
+        ]
 
         data = pd.get_dummies(data, columns=categorical_cols, drop_first=True)
 
         # Build expected schema from saved artifact first, then model fallback.
         expected_features = feature_names
-        if not expected_features and model is not None and hasattr(model, 'feature_names_in_'):
+        if (
+            not expected_features
+            and model is not None
+            and hasattr(model, 'feature_names_in_')
+        ):
             expected_features = list(model.feature_names_in_)
 
         # Ensure all expected features are present and in exact training order.
@@ -333,10 +537,12 @@ def preprocess_customer_data(customer: CustomerData) -> pd.DataFrame:
         return data
 
     except Exception as e:
-        logger.error(f"Error in preprocessing: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Preprocessing error: {str(e)}"
+        logger.error('Error in preprocessing: %s', str(e))
+        raise_api_error(
+            'PREPROCESSING_ERROR',
+            'Failed to preprocess request payload',
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            details={'reason': str(e)}
         )
 
 
@@ -363,13 +569,21 @@ def get_risk_level(probability: float) -> str:
 @app.on_event("startup")
 async def startup_event():
     """Initialize model on startup"""
-    logger.info("Starting Telco Churn Prediction API...")
+    global dependency_status, startup_errors
+
+    logger.info('Starting Telco Churn Prediction API...')
+    startup_errors = []
+    dependency_status = validate_startup_dependencies()
+
+    if not dependency_status.get('all_required_available'):
+        startup_errors.append('Required model artifacts are missing')
+
     success = load_model_artifacts()
     if not success:
-        logger.warning(
-            "⚠️  Model artifacts not fully loaded. Some endpoints may not work.")
+        startup_errors.append('Failed to load model artifacts')
+        logger.warning('Model artifacts not fully loaded')
     else:
-        logger.info("🚀 API ready to serve predictions")
+        logger.info('API ready to serve predictions')
 
 
 @app.get("/", tags=["Root"])
@@ -401,26 +615,34 @@ async def health_check():
 @app.get("/ready", tags=["Health"])
 async def readiness_check():
     """Readiness probe"""
-    if model is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Model not loaded"
+    ready = model is not None and not startup_errors
+    payload = {
+        'status': 'ready' if ready else 'not_ready',
+        'model_loaded': model is not None,
+        'dependency_status': dependency_status,
+        'startup_errors': startup_errors,
+        'timestamp': datetime.utcnow().isoformat() + 'Z'
+    }
+
+    if not ready:
+        raise_api_error(
+            'SERVICE_NOT_READY',
+            'Service is not ready to accept traffic',
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            details=payload,
         )
 
-    return {
-        "status": "ready",
-        "model_loaded": True,
-        "timestamp": datetime.utcnow().isoformat() + 'Z'
-    }
+    return payload
 
 
 @app.get("/model/info", response_model=ModelInfo, tags=["Model"])
-async def get_model_info():
+async def get_model_info(_: None = Depends(require_auth)):
     """Get model metadata"""
     if model is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Model not loaded"
+        raise_api_error(
+            'MODEL_NOT_LOADED',
+            'Model not loaded',
+            status.HTTP_503_SERVICE_UNAVAILABLE,
         )
 
     return ModelInfo(
@@ -433,12 +655,16 @@ async def get_model_info():
 
 
 @app.post("/predict", response_model=PredictionResponse, tags=["Prediction"])
-async def predict_churn(customer: CustomerData):
+async def predict_churn(
+    customer: CustomerData,
+    _: None = Depends(require_auth)
+):
     """Predict churn for a single customer"""
     if model is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Model not loaded"
+        raise_api_error(
+            'MODEL_NOT_LOADED',
+            'Model not loaded',
+            status.HTTP_503_SERVICE_UNAVAILABLE,
         )
 
     try:
@@ -460,7 +686,11 @@ async def predict_churn(customer: CustomerData):
 
         processing_time = (datetime.now() - start).total_seconds() * 1000
         logger.info(
-            f"Prediction completed in {processing_time:.2f}ms - Churn: {prediction}, Prob: {probability:.3f}")
+            'Prediction completed in %.2fms - Churn: %s, Prob: %.3f',
+            processing_time,
+            prediction,
+            probability,
+        )
 
         return PredictionResponse(
             prediction=int(prediction),
@@ -474,20 +704,38 @@ async def predict_churn(customer: CustomerData):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Prediction error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Prediction failed: {str(e)}"
+        logger.error('Prediction error: %s', str(e))
+        raise_api_error(
+            'PREDICTION_ERROR',
+            'Prediction failed',
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            details={'reason': str(e)}
         )
 
 
-@app.post("/batch_predict", response_model=BatchPredictionResponse, tags=["Prediction"])
-async def batch_predict_churn(request: BatchPredictionRequest):
+@app.post(
+    '/batch_predict',
+    response_model=BatchPredictionResponse,
+    tags=['Prediction']
+)
+async def batch_predict_churn(
+    request: BatchPredictionRequest,
+    _: None = Depends(require_auth)
+):
     """Predict churn for multiple customers"""
     if model is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Model not loaded"
+        raise_api_error(
+            'MODEL_NOT_LOADED',
+            'Model not loaded',
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    if len(request.customers) > MAX_BATCH_SIZE:
+        raise_api_error(
+            'BATCH_TOO_LARGE',
+            f'Batch size exceeds configured limit ({MAX_BATCH_SIZE})',
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            details={'max_batch_size': MAX_BATCH_SIZE}
         )
 
     try:
@@ -514,7 +762,10 @@ async def batch_predict_churn(request: BatchPredictionRequest):
         total = len(predictions)
 
         logger.info(
-            f"Batch prediction completed: {total} customers in {processing_time:.2f}ms")
+            'Batch prediction completed: %s customers in %.2fms',
+            total,
+            processing_time,
+        )
 
         return BatchPredictionResponse(
             predictions=predictions,
@@ -525,16 +776,20 @@ async def batch_predict_churn(request: BatchPredictionRequest):
             processing_time_ms=round(processing_time, 2)
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Batch prediction error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Batch prediction failed: {str(e)}"
+        logger.error('Batch prediction error: %s', str(e))
+        raise_api_error(
+            'BATCH_PREDICTION_ERROR',
+            'Batch prediction failed',
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            details={'reason': str(e)}
         )
 
 
 @app.get("/metrics", tags=["Monitoring"])
-async def get_metrics():
+async def get_metrics(_: None = Depends(require_auth)):
     """Prometheus metrics endpoint"""
     from utils.metrics import get_metrics_text, get_metrics_content_type
     from fastapi.responses import Response
@@ -548,11 +803,11 @@ async def get_metrics():
 if __name__ == "__main__":
     import uvicorn
 
-    port = int(os.getenv("API_PORT", "8000"))
+    port = int(os.getenv('API_PORT', '8000'))
     uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
+        'main:app',
+        host='0.0.0.0',
         port=port,
         reload=True,
-        log_level="info"
+        log_level='info'
     )
